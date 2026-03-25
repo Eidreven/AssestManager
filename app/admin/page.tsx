@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, FormEvent } from 'react'
+import { useState, useEffect, FormEvent, useRef } from 'react'
 
 interface Location { id: number; name: string; description: string | null }
 interface User { id: number; name: string; email: string; role: string; created_at: string }
@@ -12,8 +12,11 @@ export default function AdminPage() {
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'staff' })
   const [locLoading, setLocLoading] = useState(false)
   const [userLoading, setUserLoading] = useState(false)
+  const [backupLoading, setBackupLoading] = useState(false)
+  const [restoreLoading, setRestoreLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const restoreInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/locations').then(r => r.json()).then(setLocations)
@@ -43,6 +46,54 @@ export default function AdminPage() {
     if (!confirm('Delete this location?')) return
     await fetch(`/api/locations/${id}`, { method: 'DELETE' })
     setLocations(prev => prev.filter(l => l.id !== id))
+  }
+
+  async function handleBackup() {
+    setBackupLoading(true); setError(''); setSuccess('')
+    try {
+      const res = await fetch('/api/backup')
+      if (!res.ok) { setError('Backup failed'); return }
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const disposition = res.headers.get('Content-Disposition') ?? ''
+      const match = disposition.match(/filename="(.+)"/)
+      a.download = match ? match[1] : 'assets-backup.db'
+      a.click()
+      window.URL.revokeObjectURL(url)
+      setSuccess('Backup downloaded.')
+    } catch {
+      setError('Backup failed.')
+    } finally {
+      setBackupLoading(false)
+    }
+  }
+
+  async function handleRestore(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!confirm(`Restore database from "${file.name}"? This will replace all current data.`)) {
+      if (restoreInputRef.current) restoreInputRef.current.value = ''
+      return
+    }
+    setRestoreLoading(true); setError(''); setSuccess('')
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      const res = await fetch('/api/backup', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (res.ok) {
+        setSuccess(data.message)
+      } else {
+        setError(data.error ?? 'Restore failed')
+      }
+    } catch {
+      setError('Restore failed.')
+    } finally {
+      setRestoreLoading(false)
+      if (restoreInputRef.current) restoreInputRef.current.value = ''
+    }
   }
 
   async function addUser(e: FormEvent) {
@@ -184,6 +235,45 @@ export default function AdminPage() {
               </table>
             </div>
           )}
+        </div>
+        {/* Database Backup & Restore */}
+        <div className="card p-6 space-y-4">
+          <h2 className="font-semibold text-gray-900 text-lg">Database Backup & Restore</h2>
+          <p className="text-sm text-gray-500">Download a backup of the database or restore from a previous backup file.</p>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleBackup}
+              disabled={backupLoading}
+              className="btn-primary flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              {backupLoading ? 'Downloading…' : 'Download Backup'}
+            </button>
+
+            <label className={`btn-secondary flex items-center gap-2 cursor-pointer ${restoreLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
+              </svg>
+              {restoreLoading ? 'Restoring…' : 'Restore from Backup'}
+              <input
+                ref={restoreInputRef}
+                type="file"
+                accept=".db"
+                className="hidden"
+                onChange={handleRestore}
+              />
+            </label>
+          </div>
+
+          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            Warning: Restoring from a backup will replace all current data. Make sure to download a backup first.
+            After restoring, you will need to restart the server.
+          </p>
         </div>
       </div>
     </div>
