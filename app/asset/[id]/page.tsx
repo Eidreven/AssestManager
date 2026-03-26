@@ -10,9 +10,10 @@ import AssetHistory from './AssetHistory'
 
 export default async function AssetDetailPage({ params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()!
-  const [asset, locations] = await Promise.all([
+  const [asset, locations, teachers] = await Promise.all([
     db.getAssetById(Number(params.id)),
     db.getAllLocations(),
+    db.getTeachers(),
   ])
   if (!asset) notFound()
 
@@ -143,6 +144,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
                   assetStatus={asset.status}
                   allocationId={alloc.id}
                   locations={locations}
+                  teachers={teachers}
                   mode="return"
                 />
               )}
@@ -180,6 +182,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
                   assetStatus={asset.status}
                   allocationId={null}
                   locations={locations}
+                  teachers={teachers}
                   mode="allocate"
                 />
               )}
@@ -198,6 +201,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
             assetStatus={asset.status}
             allocationId={alloc?.id ?? null}
             locations={locations}
+            teachers={teachers}
             mode="request"
           />
         </div>

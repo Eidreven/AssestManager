@@ -4,28 +4,57 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Location { id: number; name: string }
+interface Teacher { id: number; name: string; email: string }
 
 interface Props {
   assetId: number
   assetStatus: string
   allocationId: number | null
   locations: Location[]
+  teachers: Teacher[]
   mode: 'allocate' | 'return' | 'request'
 }
 
-export default function AssetActions({ assetId, assetStatus, allocationId, locations, mode }: Props) {
+type AllocTarget = 'teacher' | 'classroom' | 'custom'
+
+interface AllocForm {
+  target: AllocTarget
+  // teacher mode
+  teacher_id: string
+  // classroom mode
+  classroom_id: string
+  // custom mode
+  custom_name: string
+  custom_role: string
+  // shared
+  location_id: string
+  purpose: string
+  is_temporary: boolean
+  expected_return: string
+  notes: string
+}
+
+export default function AssetActions({ assetId, assetStatus, allocationId, locations, teachers, mode }: Props) {
   const router = useRouter()
   const [dialog, setDialog] = useState<null | 'allocate' | 'borrow' | 'relocate'>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  // Allocate form
-  const [allocForm, setAllocForm] = useState({
-    allocated_to: '', allocated_to_role: '', location_id: '', purpose: '', expected_return: '', notes: '', is_temporary: false,
-  })
+  const defaultAllocForm: AllocForm = {
+    target: teachers.length > 0 ? 'teacher' : 'custom',
+    teacher_id: '',
+    classroom_id: '',
+    custom_name: '',
+    custom_role: 'Student',
+    location_id: '',
+    purpose: '',
+    is_temporary: false,
+    expected_return: '',
+    notes: '',
+  }
+  const [allocForm, setAllocForm] = useState<AllocForm>(defaultAllocForm)
 
-  // Request form
   const [reqForm, setReqForm] = useState({
     requester_name: '', requester_email: '', requester_class: '',
     to_location_id: '', reason: '', duration: '',
@@ -45,15 +74,48 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
   async function handleAllocate(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
+
+    let allocated_to = ''
+    let allocated_to_role = ''
+    let location_id: number | undefined = undefined
+
+    if (allocForm.target === 'teacher') {
+      const t = teachers.find(t => String(t.id) === allocForm.teacher_id)
+      if (!t) { setError('Please select a teacher.'); setLoading(false); return }
+      allocated_to = t.name
+      allocated_to_role = 'Teacher'
+      location_id = allocForm.location_id ? Number(allocForm.location_id) : undefined
+    } else if (allocForm.target === 'classroom') {
+      const loc = locations.find(l => String(l.id) === allocForm.classroom_id)
+      if (!loc) { setError('Please select a classroom.'); setLoading(false); return }
+      allocated_to = loc.name
+      allocated_to_role = 'Classroom'
+      location_id = Number(allocForm.classroom_id)
+    } else {
+      if (!allocForm.custom_name.trim()) { setError('Please enter a name.'); setLoading(false); return }
+      allocated_to = allocForm.custom_name.trim()
+      allocated_to_role = allocForm.custom_role
+      location_id = allocForm.location_id ? Number(allocForm.location_id) : undefined
+    }
+
     try {
       const res = await fetch(`/api/assets/${assetId}/allocate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...allocForm, location_id: allocForm.location_id || undefined }),
+        body: JSON.stringify({
+          allocated_to,
+          allocated_to_role,
+          location_id,
+          purpose: allocForm.purpose || undefined,
+          is_temporary: allocForm.is_temporary,
+          expected_return: allocForm.expected_return || undefined,
+          notes: allocForm.notes || undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed'); return }
       setDialog(null)
+      setAllocForm(defaultAllocForm)
       router.refresh()
     } finally {
       setLoading(false)
@@ -88,19 +150,24 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
     }
   }
 
+  function updateAlloc<K extends keyof AllocForm>(key: K, value: AllocForm[K]) {
+    setAllocForm(f => ({ ...f, [key]: value }))
+  }
   function updateReq(key: string, value: string) { setReqForm(f => ({ ...f, [key]: value })) }
-  function updateAlloc(key: string, value: string | boolean) { setAllocForm(f => ({ ...f, [key]: value })) }
 
   if (mode === 'return') {
     return (
       <div className="flex gap-2">
-        <button onClick={() => { setDialog('allocate'); setAllocForm(f => ({ ...f, is_temporary: false })) }} className="btn-primary text-xs px-3 py-1.5">
+        <button onClick={() => { setDialog('allocate'); setAllocForm(defaultAllocForm) }} className="btn-primary text-xs px-3 py-1.5">
           Re-Assign
         </button>
         <button onClick={handleReturn} disabled={loading} className="btn-secondary text-xs px-3 py-1.5">
           Mark Returned
         </button>
-        {dialog === 'allocate' && <AllocateDialog form={allocForm} update={updateAlloc} locations={locations} onSubmit={handleAllocate} onClose={() => setDialog(null)} loading={loading} error={error} />}
+        {dialog === 'allocate' && (
+          <AllocateDialog form={allocForm} update={updateAlloc} locations={locations} teachers={teachers}
+            onSubmit={handleAllocate} onClose={() => setDialog(null)} loading={loading} error={error} />
+        )}
       </div>
     )
   }
@@ -108,10 +175,13 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
   if (mode === 'allocate') {
     return (
       <>
-        <button onClick={() => setDialog('allocate')} className="btn-primary text-xs px-3 py-1.5">
+        <button onClick={() => { setDialog('allocate'); setAllocForm(defaultAllocForm) }} className="btn-primary text-xs px-3 py-1.5">
           Allocate Device
         </button>
-        {dialog === 'allocate' && <AllocateDialog form={allocForm} update={updateAlloc} locations={locations} onSubmit={handleAllocate} onClose={() => setDialog(null)} loading={loading} error={error} />}
+        {dialog === 'allocate' && (
+          <AllocateDialog form={allocForm} update={updateAlloc} locations={locations} teachers={teachers}
+            onSubmit={handleAllocate} onClose={() => setDialog(null)} loading={loading} error={error} />
+        )}
       </>
     )
   }
@@ -146,48 +216,27 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
         </button>
       </div>
 
-      {/* Borrow dialog */}
       {dialog === 'borrow' && (
-        <RequestDialog
-          title="Request Temporary Borrow"
-          form={reqForm}
-          update={updateReq}
-          locations={locations}
-          showDuration
-          showLocation={false}
-          onSubmit={() => handleRequest('borrow')}
-          onClose={() => setDialog(null)}
-          loading={loading}
-          error={error}
-        />
+        <RequestDialog title="Request Temporary Borrow" form={reqForm} update={updateReq} locations={locations}
+          showDuration showLocation={false} onSubmit={() => handleRequest('borrow')}
+          onClose={() => setDialog(null)} loading={loading} error={error} />
       )}
-
-      {/* Relocate dialog */}
       {dialog === 'relocate' && (
-        <RequestDialog
-          title="Request Relocation"
-          form={reqForm}
-          update={updateReq}
-          locations={locations}
-          showDuration={false}
-          showLocation
-          onSubmit={() => handleRequest('relocate')}
-          onClose={() => setDialog(null)}
-          loading={loading}
-          error={error}
-        />
+        <RequestDialog title="Request Relocation" form={reqForm} update={updateReq} locations={locations}
+          showDuration={false} showLocation onSubmit={() => handleRequest('relocate')}
+          onClose={() => setDialog(null)} loading={loading} error={error} />
       )}
     </div>
   )
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── Modal shell ─────────────────────────────────────────────────────────────────
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white">
           <h3 className="font-semibold text-gray-900">{title}</h3>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-500">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -201,10 +250,13 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
   )
 }
 
-function AllocateDialog({ form, update, locations, onSubmit, onClose, loading, error }: {
-  form: { allocated_to: string; allocated_to_role: string; location_id: string; purpose: string; expected_return: string; notes: string; is_temporary: boolean }
-  update: (k: string, v: string | boolean) => void
-  locations: { id: number; name: string }[]
+// ── Allocate dialog ─────────────────────────────────────────────────────────────
+
+function AllocateDialog({ form, update, locations, teachers, onSubmit, onClose, loading, error }: {
+  form: AllocForm
+  update: <K extends keyof AllocForm>(k: K, v: AllocForm[K]) => void
+  locations: Location[]
+  teachers: Teacher[]
   onSubmit: (e: React.FormEvent) => void
   onClose: () => void
   loading: boolean
@@ -212,20 +264,90 @@ function AllocateDialog({ form, update, locations, onSubmit, onClose, loading, e
 }) {
   return (
     <Modal title="Allocate Device" onClose={onClose}>
-      <form onSubmit={onSubmit} className="p-5 space-y-4">
+      <form onSubmit={onSubmit} className="p-5 space-y-5">
         {error && <div className="p-2 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">{error}</div>}
+
+        {/* Who to allocate to */}
         <div>
-          <label className="label">Allocated To *</label>
-          <input className="input" value={form.allocated_to} onChange={e => update('allocated_to', e.target.value)} placeholder="Full name" required />
+          <label className="label mb-2">Allocate to</label>
+          <div className="grid grid-cols-3 gap-2">
+            {teachers.length > 0 && (
+              <button type="button"
+                onClick={() => update('target', 'teacher')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+                  form.target === 'teacher' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <span className="text-xl">👩‍🏫</span>
+                Teacher
+              </button>
+            )}
+            <button type="button"
+              onClick={() => update('target', 'classroom')}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+                form.target === 'classroom' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <span className="text-xl">🏫</span>
+              Classroom
+            </button>
+            <button type="button"
+              onClick={() => update('target', 'custom')}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+                form.target === 'custom' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <span className="text-xl">🙋</span>
+              Other
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+
+        {/* Teacher picker */}
+        {form.target === 'teacher' && (
           <div>
-            <label className="label">Role</label>
-            <select className="input" value={form.allocated_to_role} onChange={e => update('allocated_to_role', e.target.value)}>
-              <option value="">— Select —</option>
-              <option>Teacher</option><option>Student</option><option>Staff</option><option>Other</option>
+            <label className="label">Teacher *</label>
+            <select className="input" value={form.teacher_id} onChange={e => update('teacher_id', e.target.value)} required>
+              <option value="">— Select teacher —</option>
+              {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
+        )}
+
+        {/* Classroom picker */}
+        {form.target === 'classroom' && (
+          <div>
+            <label className="label">Classroom / Location *</label>
+            <select className="input" value={form.classroom_id} onChange={e => update('classroom_id', e.target.value)} required>
+              <option value="">— Select location —</option>
+              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Custom person */}
+        {form.target === 'custom' && (
+          <div className="space-y-3">
+            <div>
+              <label className="label">Name *</label>
+              <input className="input" value={form.custom_name} onChange={e => update('custom_name', e.target.value)}
+                placeholder="e.g. John Smith" required />
+            </div>
+            <div>
+              <label className="label">Role</label>
+              <select className="input" value={form.custom_role} onChange={e => update('custom_role', e.target.value)}>
+                <option>Student</option>
+                <option>Teacher</option>
+                <option>Staff</option>
+                <option>Visitor</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Location (for teacher / custom) */}
+        {form.target !== 'classroom' && (
           <div>
             <label className="label">Location</label>
             <select className="input" value={form.location_id} onChange={e => update('location_id', e.target.value)}>
@@ -233,11 +355,14 @@ function AllocateDialog({ form, update, locations, onSubmit, onClose, loading, e
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
-        </div>
+        )}
+
         <div>
           <label className="label">Purpose</label>
-          <input className="input" value={form.purpose} onChange={e => update('purpose', e.target.value)} placeholder="e.g. Class teaching" />
+          <input className="input" value={form.purpose} onChange={e => update('purpose', e.target.value)}
+            placeholder="e.g. Class teaching, shared pool" />
         </div>
+
         <div className="flex items-center gap-2">
           <input type="checkbox" id="tmp" checked={form.is_temporary}
             onChange={e => update('is_temporary', e.target.checked)} className="rounded text-blue-600" />
@@ -249,10 +374,12 @@ function AllocateDialog({ form, update, locations, onSubmit, onClose, loading, e
             <input type="date" className="input" value={form.expected_return} onChange={e => update('expected_return', e.target.value)} />
           </div>
         )}
+
         <div>
           <label className="label">Notes</label>
           <textarea className="input resize-none" rows={2} value={form.notes} onChange={e => update('notes', e.target.value)} />
         </div>
+
         <div className="flex gap-3 pt-1">
           <button type="submit" className="btn-primary flex-1" disabled={loading}>{loading ? 'Saving…' : 'Allocate'}</button>
           <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
@@ -262,11 +389,13 @@ function AllocateDialog({ form, update, locations, onSubmit, onClose, loading, e
   )
 }
 
+// ── Request dialog ──────────────────────────────────────────────────────────────
+
 function RequestDialog({ title, form, update, locations, showDuration, showLocation, onSubmit, onClose, loading, error }: {
   title: string
   form: { requester_name: string; requester_email: string; requester_class: string; to_location_id: string; reason: string; duration: string }
   update: (k: string, v: string) => void
-  locations: { id: number; name: string }[]
+  locations: Location[]
   showDuration: boolean
   showLocation: boolean
   onSubmit: () => void
@@ -312,11 +441,7 @@ function RequestDialog({ title, form, update, locations, showDuration, showLocat
           <textarea className="input resize-none" rows={3} value={form.reason} onChange={e => update('reason', e.target.value)} placeholder="Please describe why you need this device…" />
         </div>
         <div className="flex gap-3 pt-1">
-          <button
-            className="btn-primary flex-1"
-            disabled={loading || !form.requester_name}
-            onClick={onSubmit}
-          >
+          <button className="btn-primary flex-1" disabled={loading || !form.requester_name} onClick={onSubmit}>
             {loading ? 'Submitting…' : 'Submit Request'}
           </button>
           <button className="btn-secondary" onClick={onClose}>Cancel</button>

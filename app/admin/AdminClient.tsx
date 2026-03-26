@@ -9,7 +9,7 @@ export default function AdminPage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [locForm, setLocForm] = useState({ name: '', description: '' })
-  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'staff' })
+  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'teacher' })
   const [editingLoc, setEditingLoc] = useState<{ id: number; name: string; description: string } | null>(null)
   const [locLoading, setLocLoading] = useState(false)
   const [userLoading, setUserLoading] = useState(false)
@@ -231,8 +231,8 @@ export default function AdminPage() {
 
         {/* Users */}
         <div className="card p-6 space-y-4">
-          <h2 className="font-semibold text-gray-900 text-lg">Staff Accounts</h2>
-          <p className="text-sm text-gray-500">Create accounts for teachers and IT staff.</p>
+          <h2 className="font-semibold text-gray-900 text-lg">User Accounts</h2>
+          <p className="text-sm text-gray-500">Create accounts for teachers, IT staff, and admins. Teachers appear in the allocation picker.</p>
 
           <form onSubmit={addUser} className="grid sm:grid-cols-2 gap-3">
             <div>
@@ -250,7 +250,8 @@ export default function AdminPage() {
             <div>
               <label className="label">Role</label>
               <select className="input" value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))}>
-                <option value="staff">Staff</option>
+                <option value="teacher">Teacher</option>
+                <option value="staff">Staff (IT/Admin support)</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -278,7 +279,11 @@ export default function AdminPage() {
                       <td className="px-4 py-2 font-medium">{u.name}</td>
                       <td className="px-4 py-2 text-gray-500">{u.email}</td>
                       <td className="px-4 py-2">
-                        <span className={`badge ${u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`badge ${
+                          u.role === 'admin' ? 'bg-blue-100 text-blue-700'
+                          : u.role === 'teacher' ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-600'
+                        }`}>
                           {u.role}
                         </span>
                       </td>

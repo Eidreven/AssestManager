@@ -128,7 +128,7 @@ export interface User {
   name: string
   email: string
   password_hash: string
-  role: 'admin' | 'staff'
+  role: 'admin' | 'staff' | 'teacher'
   created_at: string
 }
 
@@ -230,6 +230,10 @@ export const db = {
   },
   async getAllUsers(): Promise<Omit<User, 'password_hash'>[]> {
     const r = await sql('SELECT id, name, email, role, created_at FROM users ORDER BY name')
+    return r.rows as unknown as Omit<User, 'password_hash'>[]
+  },
+  async getTeachers(): Promise<Omit<User, 'password_hash'>[]> {
+    const r = await sql("SELECT id, name, email, role, created_at FROM users WHERE role = 'teacher' ORDER BY name")
     return r.rows as unknown as Omit<User, 'password_hash'>[]
   },
 
