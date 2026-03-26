@@ -11,13 +11,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = getAuthFromCookies()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+  // Allow both authenticated staff and unauthenticated guests
   const body = await req.json()
   const {
     asset_id, request_type, priority, requester_name, requester_email,
-    requester_class, from_location_id, to_location_id, reason, duration,
+    requester_phone, requester_class, from_location_id, to_location_id, reason, duration,
   } = body
 
   if (!asset_id || !request_type || !requester_name) {
@@ -33,6 +31,7 @@ export async function POST(req: NextRequest) {
     priority: priority ?? 'medium',
     requester_name,
     requester_email,
+    requester_phone,
     requester_class,
     from_location_id: from_location_id ? Number(from_location_id) : undefined,
     to_location_id: to_location_id ? Number(to_location_id) : undefined,

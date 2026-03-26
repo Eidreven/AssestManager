@@ -13,6 +13,7 @@ interface Request {
   priority: string
   requester_name: string
   requester_email: string | null
+  requester_phone: string | null
   requester_class: string | null
   from_location_name: string | null
   to_location_name: string | null
@@ -128,7 +129,7 @@ export default function RequestsPage() {
                     </div>
 
                     <div className="mt-2 text-sm text-gray-700 space-y-1">
-                      <p><span className="text-gray-400">From:</span> {r.requester_name}{r.requester_class ? ` · ${r.requester_class}` : ''}{r.requester_email ? ` · ${r.requester_email}` : ''}</p>
+                      <p><span className="text-gray-400">From:</span> {r.requester_name}{r.requester_class ? ` · ${r.requester_class}` : ''}{r.requester_email ? ` · ${r.requester_email}` : ''}{r.requester_phone ? ` · 📞 ${r.requester_phone}` : ''}</p>
                       {r.to_location_name && <p><span className="text-gray-400">To:</span> {r.to_location_name}</p>}
                       {r.duration && <p><span className="text-gray-400">Duration:</span> {r.duration}</p>}
                       {r.reason && <p><span className="text-gray-400">Reason:</span> {r.reason}</p>}

@@ -1,10 +1,14 @@
 import { db } from '@/lib/db'
+import { getAuthFromCookies } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import ScanForm from './ScanForm'
 
 export default function ScanPage({ params }: { params: { id: string } }) {
   const asset = db.getAssetById(Number(params.id))
   if (!asset) notFound()
+
+  const auth = getAuthFromCookies()
+  const loggedInUser = auth ? { name: auth.name, email: auth.email } : null
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-start p-4 pt-8">
@@ -43,7 +47,7 @@ export default function ScanPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        <ScanForm assetId={asset.id} />
+        <ScanForm assetId={asset.id} loggedInUser={loggedInUser} />
       </div>
     </div>
   )

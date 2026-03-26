@@ -30,8 +30,9 @@ export function getDb(): Database.Database {
 }
 
 function initSchema(db: Database.Database) {
-  // Migrate existing DB: add priority column if missing
+  // Migrate existing DB: add columns if missing
   try { db.exec(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
+  try { db.exec(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -88,6 +89,7 @@ function initSchema(db: Database.Database) {
       priority TEXT NOT NULL DEFAULT 'medium',
       requester_name TEXT NOT NULL,
       requester_email TEXT,
+      requester_phone TEXT,
       requester_class TEXT,
       from_location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
       to_location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
@@ -171,6 +173,7 @@ export interface Request {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   requester_name: string
   requester_email: string | null
+  requester_phone: string | null
   requester_class: string | null
   from_location_id: number | null
   to_location_id: number | null
@@ -444,6 +447,7 @@ export const db = {
     priority?: string
     requester_name: string
     requester_email?: string
+    requester_phone?: string
     requester_class?: string
     from_location_id?: number
     to_location_id?: number
@@ -452,14 +456,15 @@ export const db = {
   }): number {
     const result = getDb().prepare(`
       INSERT INTO requests
-        (asset_id, request_type, priority, requester_name, requester_email, requester_class,
+        (asset_id, request_type, priority, requester_name, requester_email, requester_phone, requester_class,
          from_location_id, to_location_id, reason, duration)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       data.asset_id, data.request_type,
       data.priority ?? 'medium',
       data.requester_name,
       data.requester_email ?? null,
+      data.requester_phone ?? null,
       data.requester_class ?? null,
       data.from_location_id ?? null,
       data.to_location_id ?? null,
