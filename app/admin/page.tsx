@@ -10,6 +10,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([])
   const [locForm, setLocForm] = useState({ name: '', description: '' })
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'staff' })
+  const [editingLoc, setEditingLoc] = useState<{ id: number; name: string; description: string } | null>(null)
   const [locLoading, setLocLoading] = useState(false)
   const [userLoading, setUserLoading] = useState(false)
   const [backupLoading, setBackupLoading] = useState(false)
@@ -46,6 +47,27 @@ export default function AdminPage() {
     if (!confirm('Delete this location?')) return
     await fetch(`/api/locations/${id}`, { method: 'DELETE' })
     setLocations(prev => prev.filter(l => l.id !== id))
+  }
+
+  async function saveEditLocation() {
+    if (!editingLoc) return
+    setError(''); setSuccess('')
+    const res = await fetch(`/api/locations/${editingLoc.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editingLoc.name, description: editingLoc.description }),
+    })
+    if (res.ok) {
+      setLocations(prev => prev.map(l => l.id === editingLoc.id
+        ? { ...l, name: editingLoc.name, description: editingLoc.description || null }
+        : l
+      ))
+      setSuccess('Location updated.')
+      setEditingLoc(null)
+    } else {
+      const data = await res.json()
+      setError(data.error ?? 'Failed to update')
+    }
   }
 
   async function handleBackup() {
@@ -160,11 +182,31 @@ export default function AdminPage() {
                 <tbody className="divide-y divide-gray-100">
                   {locations.map(l => (
                     <tr key={l.id}>
-                      <td className="px-4 py-2 font-medium">{l.name}</td>
-                      <td className="px-4 py-2 text-gray-500">{l.description ?? '—'}</td>
-                      <td className="px-4 py-2">
-                        <button onClick={() => deleteLocation(l.id)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
-                      </td>
+                      {editingLoc?.id === l.id ? (
+                        <>
+                          <td className="px-4 py-2">
+                            <input className="input py-1 text-sm" value={editingLoc.name}
+                              onChange={e => setEditingLoc(f => f ? { ...f, name: e.target.value } : f)} />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input className="input py-1 text-sm" value={editingLoc.description}
+                              onChange={e => setEditingLoc(f => f ? { ...f, description: e.target.value } : f)} />
+                          </td>
+                          <td className="px-4 py-2 flex gap-2">
+                            <button onClick={saveEditLocation} className="text-green-600 hover:text-green-800 text-xs font-medium">Save</button>
+                            <button onClick={() => setEditingLoc(null)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-2 font-medium">{l.name}</td>
+                          <td className="px-4 py-2 text-gray-500">{l.description ?? '—'}</td>
+                          <td className="px-4 py-2 flex gap-3">
+                            <button onClick={() => setEditingLoc({ id: l.id, name: l.name, description: l.description ?? '' })} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                            <button onClick={() => deleteLocation(l.id)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
