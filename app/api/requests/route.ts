@@ -12,32 +12,37 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   // Allow both authenticated staff and unauthenticated guests
-  const body = await req.json()
-  const {
-    asset_id, request_type, priority, requester_name, requester_email,
-    requester_phone, requester_class, from_location_id, to_location_id, reason, duration,
-  } = body
+  try {
+    const body = await req.json()
+    const {
+      asset_id, request_type, priority, requester_name, requester_email,
+      requester_phone, requester_class, from_location_id, to_location_id, reason, duration,
+    } = body
 
-  if (!asset_id || !request_type || !requester_name) {
-    return NextResponse.json({ error: 'asset_id, request_type, and requester_name are required' }, { status: 400 })
+    if (!asset_id || !request_type || !requester_name) {
+      return NextResponse.json({ error: 'asset_id, request_type, and requester_name are required' }, { status: 400 })
+    }
+
+    const asset = await db.getAssetById(Number(asset_id))
+    if (!asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
+
+    const id = await db.createRequest({
+      asset_id: Number(asset_id),
+      request_type,
+      priority: priority ?? 'medium',
+      requester_name,
+      requester_email,
+      requester_phone,
+      requester_class,
+      from_location_id: from_location_id ? Number(from_location_id) : undefined,
+      to_location_id: to_location_id ? Number(to_location_id) : undefined,
+      reason,
+      duration,
+    })
+
+    return NextResponse.json({ id }, { status: 201 })
+  } catch (err) {
+    console.error('POST /api/requests error:', err)
+    return NextResponse.json({ error: 'Failed to submit request. Please try again.' }, { status: 500 })
   }
-
-  const asset = await db.getAssetById(Number(asset_id))
-  if (!asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
-
-  const id = await db.createRequest({
-    asset_id: Number(asset_id),
-    request_type,
-    priority: priority ?? 'medium',
-    requester_name,
-    requester_email,
-    requester_phone,
-    requester_class,
-    from_location_id: from_location_id ? Number(from_location_id) : undefined,
-    to_location_id: to_location_id ? Number(to_location_id) : undefined,
-    reason,
-    duration,
-  })
-
-  return NextResponse.json({ id }, { status: 201 })
 }
