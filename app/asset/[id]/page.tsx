@@ -8,12 +8,16 @@ import AssetHistory from './AssetHistory'
 
 export default async function AssetDetailPage({ params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()!
-  const asset = await db.getAssetById(Number(params.id))
+  const [asset, locations] = await Promise.all([
+    db.getAssetById(Number(params.id)),
+    db.getAllLocations(),
+  ])
   if (!asset) notFound()
 
-  const history = await db.getAllocationHistory(asset.id)
-  const requests = await db.getRequestsByAsset(asset.id)
-  const locations = await db.getAllLocations()
+  const [history, requests] = await Promise.all([
+    db.getAllocationHistory(asset.id),
+    db.getRequestsByAsset(asset.id),
+  ])
 
   const alloc = asset.current_allocation
 
