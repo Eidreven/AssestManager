@@ -1,26 +1,8 @@
 import { createClient } from '@libsql/client'
 
-const rawClient = createClient({
+const client = createClient({
   url: process.env.TURSO_DATABASE_URL ?? 'file:data/assets.db',
   authToken: process.env.TURSO_AUTH_TOKEN,
-})
-
-// Proxy that auto-initializes schema on first use (avoids build-time errors on Vercel)
-let schemaReady = false
-const client = new Proxy(rawClient, {
-  get(target, prop) {
-    const val = target[prop as keyof typeof target]
-    if (prop === 'execute' && typeof val === 'function') {
-      return async (...args: Parameters<typeof target.execute>) => {
-        if (!schemaReady) {
-          await initSchema()
-          schemaReady = true
-        }
-        return (val as typeof target.execute).apply(target, args)
-      }
-    }
-    return typeof val === 'function' ? val.bind(target) : val
-  },
 })
 
 export function resetDb(): void {
@@ -32,7 +14,7 @@ export function getDb() {
 }
 
 async function initSchema() {
-  await rawClient.execute(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -43,7 +25,7 @@ async function initSchema() {
     )
   `)
 
-  await rawClient.execute(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS locations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -52,7 +34,7 @@ async function initSchema() {
     )
   `)
 
-  await rawClient.execute(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_tag TEXT UNIQUE NOT NULL,
@@ -70,7 +52,7 @@ async function initSchema() {
     )
   `)
 
-  await rawClient.execute(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS allocations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
@@ -87,7 +69,7 @@ async function initSchema() {
     )
   `)
 
-  await rawClient.execute(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
@@ -110,10 +92,12 @@ async function initSchema() {
   `)
 
   // Migrations: add columns if missing (ignore errors if already exist)
-  try { await rawClient.execute(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
-  try { await rawClient.execute(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
+  try { await client.execute(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
+  try { await client.execute(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
 }
 
+// Run schema init silently — errors are non-fatal (tables may already exist)
+initSchema().catch(err => console.error('Schema init error:', err))
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

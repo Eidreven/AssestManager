@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { signToken, setAuthCookie } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
+  try {
   const { email, password } = await req.json()
 
   if (!email || !password) {
@@ -32,4 +33,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
   })
+  } catch (err) {
+    console.error('Login error:', err)
+    return NextResponse.json({ error: 'Server error: ' + String(err) }, { status: 500 })
+  }
 }
