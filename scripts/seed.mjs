@@ -6,7 +6,8 @@
  * For local dev, these can be set in .env.local or omitted (defaults to file:data/assets.db)
  */
 
-import { createClient } from '@libsql/client'
+import pkg from '@libsql/client'
+const { createClient } = pkg
 import bcrypt from 'bcryptjs'
 
 const client = createClient({
