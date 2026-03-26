@@ -10,9 +10,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const asset = db.getAssetById(Number(params.id))
   if (!asset) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // The QR code links to the asset scan page
-  const baseUrl = req.nextUrl.origin
-  const url = `${baseUrl}/scan/${asset.id}`
+  // Use the Host header so the QR code points to the correct IP/hostname
+  const host = req.headers.get('host') ?? req.nextUrl.host
+  const protocol = req.headers.get('x-forwarded-proto') ?? 'http'
+  const url = `${protocol}://${host}/scan/${asset.id}`
 
   const format = req.nextUrl.searchParams.get('format') ?? 'png'
 
