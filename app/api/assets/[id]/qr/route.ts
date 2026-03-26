@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
 import { db } from '@/lib/db'
 import { getAuthFromCookies } from '@/lib/auth'
+import os from 'os'
+
+function getLocalIP(): string {
+  const nets = os.networkInterfaces()
+  for (const iface of Object.values(nets)) {
+    for (const net of iface ?? []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address
+      }
+    }
+  }
+  return 'localhost'
+}
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
@@ -10,10 +23,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const asset = db.getAssetById(Number(params.id))
   if (!asset) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Use the Host header so the QR code points to the correct IP/hostname
-  const host = req.headers.get('host') ?? req.nextUrl.host
-  const protocol = req.headers.get('x-forwarded-proto') ?? 'http'
-  const url = `${protocol}://${host}/scan/${asset.id}`
+  // Use the machine's local network IP so iPads/phones on the same WiFi can open it
+  const port = req.nextUrl.port || '3000'
+  const localIP = getLocalIP()
+  const url = `http://${localIP}:${port}/scan/${asset.id}`
 
   const format = req.nextUrl.searchParams.get('format') ?? 'png'
 
