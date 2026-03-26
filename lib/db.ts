@@ -110,8 +110,8 @@ async function initSchema() {
   `)
 
   // Migrations: add columns if missing (ignore errors if already exist)
-  try { await client.execute(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
-  try { await client.execute(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
+  try { await rawClient.execute(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
+  try { await rawClient.execute(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
 }
 
 
