@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthFromRequest } from '@/lib/auth'
+import { resetDb } from '@/lib/db'
 import path from 'path'
 import fs from 'fs'
 
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
   }
 
   fs.writeFileSync(DB_PATH, buffer)
+  resetDb()
 
-  return NextResponse.json({ message: 'Database restored successfully. Please restart the server.' })
+  return NextResponse.json({ message: 'Database restored successfully.' })
 }

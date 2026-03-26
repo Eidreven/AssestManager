@@ -272,7 +272,6 @@ export default function AdminPage() {
 
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
             Warning: Restoring from a backup will replace all current data. Make sure to download a backup first.
-            After restoring, you will need to restart the server.
           </p>
         </div>
       </div>

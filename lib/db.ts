@@ -7,6 +7,13 @@ const DB_PATH = path.join(DATA_DIR, 'assets.db')
 
 let _db: Database.Database | null = null
 
+export function resetDb(): void {
+  if (_db) {
+    _db.close()
+    _db = null
+  }
+}
+
 export function getDb(): Database.Database {
   if (_db) return _db
 
