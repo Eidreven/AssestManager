@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { db } from '@/lib/db'
 import { getAuthFromCookies } from '@/lib/auth'
 import { notFound } from 'next/navigation'

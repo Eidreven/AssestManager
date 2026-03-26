@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import AppShell from '@/components/AppShell'
 import { db } from '@/lib/db'
 import { getAuthFromCookies } from '@/lib/auth'
