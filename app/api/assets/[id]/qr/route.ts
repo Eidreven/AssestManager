@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   // The QR code links to the asset scan page
   const baseUrl = req.nextUrl.origin
-  const url = `${baseUrl}/asset/${asset.id}`
+  const url = `${baseUrl}/scan/${asset.id}`
 
   const format = req.nextUrl.searchParams.get('format') ?? 'png'
 

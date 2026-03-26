@@ -5,7 +5,7 @@ import { jwtVerify } from 'jose'
 const JWT_SECRET = process.env.JWT_SECRET ?? 'mps-asset-manager-secret-change-in-production'
 const COOKIE_NAME = 'mps_auth_token'
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login']
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/scan', '/api/requests']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

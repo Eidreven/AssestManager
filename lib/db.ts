@@ -30,6 +30,9 @@ export function getDb(): Database.Database {
 }
 
 function initSchema(db: Database.Database) {
+  // Migrate existing DB: add priority column if missing
+  try { db.exec(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,6 +85,7 @@ function initSchema(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
       request_type TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'medium',
       requester_name TEXT NOT NULL,
       requester_email TEXT,
       requester_class TEXT,
@@ -163,7 +167,8 @@ export interface AllocationWithDetails extends Allocation {
 export interface Request {
   id: number
   asset_id: number
-  request_type: 'relocate' | 'borrow'
+  request_type: 'relocate' | 'borrow' | 'issue'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
   requester_name: string
   requester_email: string | null
   requester_class: string | null
@@ -436,6 +441,7 @@ export const db = {
   createRequest(data: {
     asset_id: number
     request_type: string
+    priority?: string
     requester_name: string
     requester_email?: string
     requester_class?: string
@@ -446,11 +452,13 @@ export const db = {
   }): number {
     const result = getDb().prepare(`
       INSERT INTO requests
-        (asset_id, request_type, requester_name, requester_email, requester_class,
+        (asset_id, request_type, priority, requester_name, requester_email, requester_class,
          from_location_id, to_location_id, reason, duration)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      data.asset_id, data.request_type, data.requester_name,
+      data.asset_id, data.request_type,
+      data.priority ?? 'medium',
+      data.requester_name,
       data.requester_email ?? null,
       data.requester_class ?? null,
       data.from_location_id ?? null,

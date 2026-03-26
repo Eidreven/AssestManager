@@ -11,12 +11,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = getAuthFromCookies()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+  // Allow unauthenticated submissions from QR scan page
   const body = await req.json()
   const {
-    asset_id, request_type, requester_name, requester_email,
+    asset_id, request_type, priority, requester_name, requester_email,
     requester_class, from_location_id, to_location_id, reason, duration,
   } = body
 
@@ -30,6 +28,7 @@ export async function POST(req: NextRequest) {
   const id = db.createRequest({
     asset_id: Number(asset_id),
     request_type,
+    priority: priority ?? 'medium',
     requester_name,
     requester_email,
     requester_class,

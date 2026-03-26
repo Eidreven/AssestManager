@@ -10,6 +10,7 @@ interface Request {
   asset_name: string | null
   asset_type: string | null
   request_type: string
+  priority: string
   requester_name: string
   requester_email: string | null
   requester_class: string | null
@@ -22,6 +23,19 @@ interface Request {
   handled_by_name: string | null
   handled_at: string | null
   created_at: string
+}
+
+const PRIORITY_STYLES: Record<string, string> = {
+  low: 'bg-gray-100 text-gray-600',
+  medium: 'bg-blue-100 text-blue-700',
+  high: 'bg-orange-100 text-orange-700',
+  urgent: 'bg-red-100 text-red-700 font-bold',
+}
+
+const TYPE_STYLES: Record<string, { badge: string; label: string }> = {
+  borrow: { badge: 'bg-amber-100 text-amber-800', label: '⏱ Borrow' },
+  relocate: { badge: 'bg-purple-100 text-purple-800', label: '📍 Relocate' },
+  issue: { badge: 'bg-red-100 text-red-800', label: '⚠️ Issue' },
 }
 
 const STATUS_TABS = ['all', 'pending', 'approved', 'rejected', 'completed']
@@ -97,10 +111,11 @@ export default function RequestsPage() {
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span className={`badge ${
-                        r.request_type === 'borrow' ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
-                      }`}>
-                        {r.request_type === 'borrow' ? '⏱ Borrow' : '📍 Relocate'}
+                      <span className={`badge ${(TYPE_STYLES[r.request_type] ?? TYPE_STYLES.borrow).badge}`}>
+                        {(TYPE_STYLES[r.request_type] ?? TYPE_STYLES.borrow).label}
+                      </span>
+                      <span className={`badge ${PRIORITY_STYLES[r.priority] ?? PRIORITY_STYLES.medium}`}>
+                        {r.priority?.toUpperCase() ?? 'MEDIUM'}
                       </span>
                       <span className={`badge-${r.status}`}>{r.status}</span>
                     </div>
