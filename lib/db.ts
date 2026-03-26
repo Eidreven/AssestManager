@@ -1,7 +1,11 @@
 import { createClient } from '@libsql/client'
 
+// Convert libsql:// to https:// for reliable HTTP connections on Vercel
+const rawUrl = process.env.TURSO_DATABASE_URL ?? 'file:data/assets.db'
+const dbUrl = rawUrl.startsWith('libsql://') ? rawUrl.replace('libsql://', 'https://') : rawUrl
+
 const client = createClient({
-  url: process.env.TURSO_DATABASE_URL ?? 'file:data/assets.db',
+  url: dbUrl,
   authToken: process.env.TURSO_AUTH_TOKEN,
 })
 
