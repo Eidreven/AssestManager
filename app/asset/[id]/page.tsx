@@ -62,37 +62,63 @@ export default function AssetDetailPage({ params }: { params: { id: string } }) 
                 <span className={`badge border ${STATUS_COLORS[asset.status] ?? 'bg-gray-100 text-gray-600'} capitalize`}>
                   {asset.status}
                 </span>
-                {/* QR code link (admin only) */}
+                {/* QR buttons (admin only) */}
                 {auth.role === 'admin' && (
-                  <a
-                    href={`/api/assets/${asset.id}/qr`}
-                    download={`${asset.asset_tag}-qr.png`}
-                    className="text-xs text-blue-200 hover:text-white underline underline-offset-2 flex items-center gap-1"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5a.5.5 0 11-1 0 .5.5 0 011 0zM6 3.5a.5.5 0 11-1 0 .5.5 0 011 0zM3 8.5a.5.5 0 11-1 0 .5.5 0 011 0z" />
-                    </svg>
-                    Download QR
-                  </a>
+                  <div className="flex gap-2">
+                    <a
+                      href={`/api/assets/${asset.id}/qr`}
+                      download={`${asset.asset_tag}-qr.png`}
+                      className="text-xs bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download
+                    </a>
+                    <Link
+                      href={`/asset/${asset.id}/qr`}
+                      target="_blank"
+                      className="text-xs bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      Print
+                    </Link>
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Details grid */}
+          {/* Details grid + QR */}
           <div className="p-6">
-            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-              <Detail label="Serial Number" value={asset.serial_number} />
-              <Detail label="Location" value={asset.location_name} />
-              <Detail label="Purchase Date" value={formatDate(asset.purchase_date)} />
-              <Detail label="Warranty Expiry" value={formatDate(asset.warranty_expiry)} />
-              {asset.notes && (
-                <div className="sm:col-span-2">
-                  <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Notes</p>
-                  <p className="text-gray-700">{asset.notes}</p>
-                </div>
-              )}
+            <div className="flex flex-col sm:flex-row gap-6">
+              <div className="flex-1 grid sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                <Detail label="Serial Number" value={asset.serial_number} />
+                <Detail label="Location" value={asset.location_name} />
+                <Detail label="Purchase Date" value={formatDate(asset.purchase_date)} />
+                <Detail label="Warranty Expiry" value={formatDate(asset.warranty_expiry)} />
+                {asset.notes && (
+                  <div className="sm:col-span-2">
+                    <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Notes</p>
+                    <p className="text-gray-700">{asset.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* QR Code */}
+              <div className="flex flex-col items-center gap-2 shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/assets/${asset.id}/qr?format=svg`}
+                  alt={`QR code for ${asset.asset_tag}`}
+                  width={120}
+                  height={120}
+                  className="block rounded-lg"
+                />
+                <p className="text-xs text-gray-400 text-center">Scan to report issue</p>
+              </div>
             </div>
           </div>
         </div>
