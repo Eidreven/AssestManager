@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const typeFilter = searchParams.get('type') ?? 'all'
   const statusFilter = searchParams.get('status') ?? 'all'
 
-  const client = getDb()
+  const db = getDb()
 
   let sql = `
     SELECT
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
   sql += ` ORDER BY a.asset_tag ASC`
 
-  const result = await client.execute({ sql, args })
+  const result = await db.execute(sql, args)
   const rows = result.rows as unknown as Record<string, string | null>[]
 
   // Clean up nulls to empty strings for Excel
