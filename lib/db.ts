@@ -37,7 +37,13 @@ async function sql(query: string, args: SqlValue[] = []): Promise<{ rows: Row[];
 
   const { cols, rows, last_insert_rowid } = result.response!.result
   return {
-    rows: rows.map(r => Object.fromEntries(cols.map((c, i) => [c.name, r[i]]))),
+    rows: rows.map(r => Object.fromEntries(cols.map((c, i) => {
+      const cell = r[i] as { type: string; value: unknown } | null
+      if (!cell || cell.type === 'null') return [c.name, null]
+      if (cell.type === 'integer') return [c.name, Number(cell.value)]
+      if (cell.type === 'float') return [c.name, Number(cell.value)]
+      return [c.name, cell.value as SqlValue]
+    }))),
     lastInsertRowid: last_insert_rowid ? Number(last_insert_rowid) : null,
   }
 }
