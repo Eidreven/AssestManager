@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthFromRequest } from '@/lib/auth'
+import { resetDb } from '@/lib/db'
+import fs from 'fs'
+import path from 'path'
 
 export async function POST(req: NextRequest) {
   const token = getAuthFromRequest(req)
@@ -7,8 +10,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 })
   }
 
-  // Exit the process — npm run dev will automatically restart it
-  setTimeout(() => process.exit(0), 300)
+  // Reset DB connection so next request picks up the restored database
+  resetDb()
 
-  return NextResponse.json({ message: 'Server is restarting…' })
+  // Touch next.config.js to trigger Next.js hot reload without killing the process
+  const configPath = path.join(process.cwd(), 'next.config.js')
+  const now = new Date()
+  fs.utimesSync(configPath, now, now)
+
+  return NextResponse.json({ message: 'Server reloaded successfully.' })
 }

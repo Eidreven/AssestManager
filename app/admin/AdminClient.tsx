@@ -76,9 +76,9 @@ export default function AdminPage() {
     setRestartLoading(true)
     try {
       await fetch('/api/restart', { method: 'POST' })
-      setSuccess('Server is restarting… please wait a few seconds then refresh the page.')
+      setSuccess('Server reloaded. Data is refreshed.')
     } catch {
-      setSuccess('Server is restarting… please wait a few seconds then refresh the page.')
+      setSuccess('Server reloaded. Data is refreshed.')
     } finally {
       setRestartLoading(false)
     }
