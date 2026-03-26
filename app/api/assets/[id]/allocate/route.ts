@@ -8,7 +8,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (auth.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const assetId = Number(params.id)
-  const asset = db.getAssetById(assetId)
+  const asset = await db.getAssetById(assetId)
   if (!asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
 
   const body = await req.json()
@@ -18,10 +18,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Return current allocation if exists
   if (asset.current_allocation) {
-    db.returnAllocation(asset.current_allocation.id, assetId)
+    await db.returnAllocation(asset.current_allocation.id, assetId)
   }
 
-  const id = db.createAllocation({
+  const id = await db.createAllocation({
     asset_id: assetId,
     allocated_to,
     allocated_to_role,
@@ -42,11 +42,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (auth.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const assetId = Number(params.id)
-  const asset = db.getAssetById(assetId)
+  const asset = await db.getAssetById(assetId)
   if (!asset?.current_allocation) {
     return NextResponse.json({ error: 'No active allocation' }, { status: 400 })
   }
 
-  db.returnAllocation(asset.current_allocation.id, assetId)
+  await db.returnAllocation(asset.current_allocation.id, assetId)
   return NextResponse.json({ ok: true })
 }

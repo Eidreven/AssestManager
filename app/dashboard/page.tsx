@@ -14,12 +14,16 @@ function StatCard({ label, value, color, href }: { label: string; value: number;
   return content
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
   const auth = getAuthFromCookies()!
-  const stats = db.getStats()
-  const recentAllocations = db.getAllAllocations().slice(0, 5)
-  const pendingRequests = db.getPendingRequests().slice(0, 5)
-  const assets = db.getAllAssets()
+  const [stats, allAllocations, pendingRequests, assets] = await Promise.all([
+    db.getStats(),
+    db.getAllAllocations(),
+    db.getPendingRequests(),
+    db.getAllAssets(),
+  ])
+  const recentAllocations = allAllocations.slice(0, 5)
+  const recentPending = pendingRequests.slice(0, 5)
 
   // Group assets by type
   const byType: Record<string, number> = {}
@@ -85,11 +89,11 @@ export default function DashboardPage() {
               <h2 className="font-semibold text-gray-900">Pending Requests</h2>
               <Link href="/requests" className="text-sm text-blue-600 hover:text-blue-700">View all</Link>
             </div>
-            {pendingRequests.length === 0 ? (
+            {recentPending.length === 0 ? (
               <p className="text-gray-400 text-sm">No pending requests.</p>
             ) : (
               <div className="space-y-3">
-                {pendingRequests.map(r => (
+                {recentPending.map(r => (
                   <div key={r.id} className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">

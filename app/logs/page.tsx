@@ -2,8 +2,8 @@ import AppShell from '@/components/AppShell'
 import { db } from '@/lib/db'
 import Link from 'next/link'
 
-export default function LogsPage() {
-  const allocations = db.getAllAllocations()
+export default async function LogsPage() {
+  const allocations = await db.getAllAllocations()
 
   function formatDate(s: string | null) {
     if (!s) return '—'

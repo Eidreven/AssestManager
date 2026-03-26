@@ -8,7 +8,7 @@ export async function GET() {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (auth.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  return NextResponse.json(db.getAllUsers())
+  return NextResponse.json(await db.getAllUsers())
 }
 
 export async function POST(req: NextRequest) {
@@ -22,13 +22,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Name, email and password are required' }, { status: 400 })
   }
 
-  const existing = db.getUserByEmail(email.toLowerCase().trim())
+  const existing = await db.getUserByEmail(email.toLowerCase().trim())
   if (existing) {
     return NextResponse.json({ error: 'Email already in use' }, { status: 400 })
   }
 
   const hash = await bcrypt.hash(password, 12)
-  const id = db.createUser(name, email.toLowerCase().trim(), hash, role ?? 'staff')
+  const id = await db.createUser(name, email.toLowerCase().trim(), hash, role ?? 'staff')
 
   return NextResponse.json({ id, name, email, role: role ?? 'staff' }, { status: 201 })
 }

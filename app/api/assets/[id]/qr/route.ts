@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const asset = db.getAssetById(Number(params.id))
+  const asset = await db.getAssetById(Number(params.id))
   if (!asset) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Use the machine's local network IP so iPads/phones on the same WiFi can open it

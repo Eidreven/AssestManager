@@ -6,7 +6,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const asset = db.getAssetById(Number(params.id))
+  const asset = await db.getAssetById(Number(params.id))
   if (!asset) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   return NextResponse.json(asset)
@@ -26,8 +26,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (key in body) update[key] = body[key] === '' ? null : body[key]
   }
 
-  db.updateAsset(id, update as Parameters<typeof db.updateAsset>[1])
-  const asset = db.getAssetById(id)
+  await db.updateAsset(id, update as Parameters<typeof db.updateAsset>[1])
+  const asset = await db.getAssetById(id)
   return NextResponse.json(asset)
 }
 
@@ -36,6 +36,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (auth.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  db.deleteAsset(Number(params.id))
+  await db.deleteAsset(Number(params.id))
   return NextResponse.json({ ok: true })
 }

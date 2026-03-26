@@ -3,8 +3,8 @@ import { getAuthFromCookies } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import ScanForm from './ScanForm'
 
-export default function ScanPage({ params }: { params: { id: string } }) {
-  const asset = db.getAssetById(Number(params.id))
+export default async function ScanPage({ params }: { params: { id: string } }) {
+  const asset = await db.getAssetById(Number(params.id))
   if (!asset) notFound()
 
   const auth = getAuthFromCookies()

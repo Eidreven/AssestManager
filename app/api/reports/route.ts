@@ -13,9 +13,9 @@ export async function GET(req: NextRequest) {
   const typeFilter = searchParams.get('type') ?? 'all'
   const statusFilter = searchParams.get('status') ?? 'all'
 
-  const db = getDb()
+  const client = getDb()
 
-  let query = `
+  let sql = `
     SELECT
       a.asset_tag AS "Asset Tag",
       a.name AS "Name",
@@ -38,21 +38,22 @@ export async function GET(req: NextRequest) {
     WHERE 1=1
   `
 
-  const params: string[] = []
+  const args: string[] = []
 
   if (typeFilter !== 'all') {
-    query += ` AND LOWER(a.type) LIKE LOWER(?)`
-    params.push(`%${typeFilter}%`)
+    sql += ` AND LOWER(a.type) LIKE LOWER(?)`
+    args.push(`%${typeFilter}%`)
   }
 
   if (statusFilter !== 'all') {
-    query += ` AND a.status = ?`
-    params.push(statusFilter)
+    sql += ` AND a.status = ?`
+    args.push(statusFilter)
   }
 
-  query += ` ORDER BY a.asset_tag ASC`
+  sql += ` ORDER BY a.asset_tag ASC`
 
-  const rows = db.prepare(query).all(...params) as Record<string, string | null>[]
+  const result = await client.execute({ sql, args })
+  const rows = result.rows as unknown as Record<string, string | null>[]
 
   // Clean up nulls to empty strings for Excel
   const cleaned = rows.map(row =>

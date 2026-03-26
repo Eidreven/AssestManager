@@ -6,7 +6,7 @@ export async function GET() {
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const requests = auth.role === 'admin' ? db.getAllRequests() : db.getPendingRequests()
+  const requests = auth.role === 'admin' ? await db.getAllRequests() : await db.getPendingRequests()
   return NextResponse.json(requests)
 }
 
@@ -22,10 +22,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'asset_id, request_type, and requester_name are required' }, { status: 400 })
   }
 
-  const asset = db.getAssetById(Number(asset_id))
+  const asset = await db.getAssetById(Number(asset_id))
   if (!asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
 
-  const id = db.createRequest({
+  const id = await db.createRequest({
     asset_id: Number(asset_id),
     request_type,
     priority: priority ?? 'medium',

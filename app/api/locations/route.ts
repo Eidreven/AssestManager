@@ -6,7 +6,7 @@ export async function GET() {
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  return NextResponse.json(db.getAllLocations())
+  return NextResponse.json(await db.getAllLocations())
 }
 
 export async function POST(req: NextRequest) {
@@ -17,6 +17,6 @@ export async function POST(req: NextRequest) {
   const { name, description } = await req.json()
   if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
-  const id = db.createLocation(name, description)
+  const id = await db.createLocation(name, description)
   return NextResponse.json({ id, name, description }, { status: 201 })
 }

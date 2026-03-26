@@ -13,6 +13,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
-  db.updateRequestStatus(Number(params.id), status, auth.userId, handler_notes)
+  await db.updateRequestStatus(Number(params.id), status, auth.userId, handler_notes)
   return NextResponse.json({ ok: true })
 }

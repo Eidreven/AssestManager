@@ -6,14 +6,14 @@ import Link from 'next/link'
 import AssetActions from './AssetActions'
 import AssetHistory from './AssetHistory'
 
-export default function AssetDetailPage({ params }: { params: { id: string } }) {
+export default async function AssetDetailPage({ params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()!
-  const asset = db.getAssetById(Number(params.id))
+  const asset = await db.getAssetById(Number(params.id))
   if (!asset) notFound()
 
-  const history = db.getAllocationHistory(asset.id)
-  const requests = db.getRequestsByAsset(asset.id)
-  const locations = db.getAllLocations()
+  const history = await db.getAllocationHistory(asset.id)
+  const requests = await db.getRequestsByAsset(asset.id)
+  const locations = await db.getAllLocations()
 
   const alloc = asset.current_allocation
 

@@ -6,7 +6,7 @@ export async function GET() {
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const assets = db.getAllAssets()
+  const assets = await db.getAllAssets()
   return NextResponse.json(assets)
 }
 
@@ -23,9 +23,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Auto-generate asset tag
-  const asset_tag = db.nextAssetTag(type)
+  const asset_tag = await db.nextAssetTag(type)
 
-  const id = db.createAsset({
+  const id = await db.createAsset({
     asset_tag,
     name,
     type,
@@ -37,6 +37,6 @@ export async function POST(req: NextRequest) {
     warranty_expiry,
   })
 
-  const asset = db.getAssetById(id)
+  const asset = await db.getAssetById(id)
   return NextResponse.json(asset, { status: 201 })
 }

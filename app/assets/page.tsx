@@ -10,13 +10,13 @@ const STATUS_LABELS: Record<string, string> = {
   retired: 'Retired',
 }
 
-export default function AssetsPage({
+export default async function AssetsPage({
   searchParams,
 }: {
   searchParams?: { status?: string; q?: string }
 }) {
   const auth = getAuthFromCookies()!
-  let assets = db.getAllAssets()
+  let assets = await db.getAllAssets()
 
   if (searchParams?.status) {
     assets = assets.filter(a => a.status === searchParams.status)

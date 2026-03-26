@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
   }
 
-  const user = db.getUserByEmail(email.toLowerCase().trim())
+  const user = await db.getUserByEmail(email.toLowerCase().trim())
   if (!user) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
   }

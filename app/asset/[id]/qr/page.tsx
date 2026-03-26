@@ -3,10 +3,10 @@ import { getAuthFromCookies } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import QRPrintClient from './QRPrintClient'
 
-export default function QRPage({ params }: { params: { id: string } }) {
+export default async function QRPage({ params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
   if (!auth) notFound()
-  const asset = db.getAssetById(Number(params.id))
+  const asset = await db.getAssetById(Number(params.id))
   if (!asset) notFound()
 
   return <QRPrintClient asset={asset} />

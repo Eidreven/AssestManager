@@ -6,5 +6,5 @@ export async function GET() {
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  return NextResponse.json(db.getStats())
+  return NextResponse.json(await db.getStats())
 }
