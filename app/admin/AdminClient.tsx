@@ -95,7 +95,7 @@ export default function AdminPage() {
       a.href = url
       const disposition = res.headers.get('Content-Disposition') ?? ''
       const match = disposition.match(/filename="(.+)"/)
-      a.download = match ? match[1] : 'assets-backup.db'
+      a.download = match ? match[1] : 'assets-backup.json'
       a.click()
       window.URL.revokeObjectURL(url)
       setSuccess('Backup downloaded.')
@@ -295,7 +295,7 @@ export default function AdminPage() {
         {/* Database Backup & Restore */}
         <div className="card p-6 space-y-4">
           <h2 className="font-semibold text-gray-900 text-lg">Database Backup & Restore</h2>
-          <p className="text-sm text-gray-500">Download a backup of the database or restore from a previous backup file.</p>
+          <p className="text-sm text-gray-500">Download a JSON backup of all data or restore from a previous JSON backup file.</p>
 
           <div className="flex flex-wrap gap-3">
             <button
@@ -319,7 +319,7 @@ export default function AdminPage() {
               <input
                 ref={restoreInputRef}
                 type="file"
-                accept=".db"
+                accept=".json"
                 className="hidden"
                 onChange={handleRestore}
               />
