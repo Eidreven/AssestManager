@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [userLoading, setUserLoading] = useState(false)
   const [backupLoading, setBackupLoading] = useState(false)
   const [restoreLoading, setRestoreLoading] = useState(false)
+  const [restartLoading, setRestartLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const restoreInputRef = useRef<HTMLInputElement>(null)
@@ -67,6 +68,19 @@ export default function AdminPage() {
     } else {
       const data = await res.json()
       setError(data.error ?? 'Failed to update')
+    }
+  }
+
+  async function handleRestart() {
+    if (!confirm('Restart the server? The app will be unavailable for a few seconds.')) return
+    setRestartLoading(true)
+    try {
+      await fetch('/api/restart', { method: 'POST' })
+      setSuccess('Server is restarting… please wait a few seconds then refresh the page.')
+    } catch {
+      setSuccess('Server is restarting… please wait a few seconds then refresh the page.')
+    } finally {
+      setRestartLoading(false)
     }
   }
 
@@ -310,6 +324,24 @@ export default function AdminPage() {
                 onChange={handleRestore}
               />
             </label>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4 flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Restart Server</p>
+              <p className="text-xs text-gray-500">Use this if data doesn&apos;t look right after a restore.</p>
+            </div>
+            <button
+              onClick={handleRestart}
+              disabled={restartLoading}
+              className="btn-warning flex items-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {restartLoading ? 'Restarting…' : 'Restart Server'}
+            </button>
           </div>
 
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
