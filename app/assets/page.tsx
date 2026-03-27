@@ -4,6 +4,7 @@ import AppShell from '@/components/AppShell'
 import { db } from '@/lib/db'
 import { getAuthFromCookies } from '@/lib/auth'
 import Link from 'next/link'
+import TeacherFilter from './TeacherFilter'
 
 const STATUS_LABELS: Record<string, string> = {
   available: 'Available',
@@ -78,21 +79,10 @@ export default async function AssetsPage({
 
           {/* Teacher filter */}
           {teachers.length > 0 && (
-            <form method="GET" action="/assets">
-              {searchParams?.q && <input type="hidden" name="q" value={searchParams.q} />}
-              {searchParams?.status && <input type="hidden" name="status" value={searchParams.status} />}
-              <select
-                name="teacher"
-                className="input"
-                defaultValue={searchParams?.teacher ?? ''}
-                onChange={e => (e.target.form as HTMLFormElement).submit()}
-              >
-                <option value="">All Teachers</option>
-                {teachers.map(t => (
-                  <option key={t.id} value={t.name}>{t.name}</option>
-                ))}
-              </select>
-            </form>
+            <TeacherFilter
+              teachers={teachers.map(t => t.name)}
+              current={searchParams?.teacher ?? ''}
+            />
           )}
 
           {/* Status filter */}
