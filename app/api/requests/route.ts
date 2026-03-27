@@ -41,27 +41,28 @@ export async function POST(req: NextRequest) {
       duration,
     })
 
-    // Send emails (non-blocking — don't fail the request if email fails)
-    Promise.all([
-      sendNewRequestNotification({
-        requestId: id,
+    // Send emails independently so one failure doesn't block the other
+    sendNewRequestNotification({
+      requestId: id,
+      assetTag: asset.asset_tag,
+      assetName: asset.name,
+      requestType: request_type,
+      priority: priority ?? 'medium',
+      requesterName: requester_name,
+      requesterEmail: requester_email,
+      requesterPhone: requester_phone,
+      reason,
+    }).catch(err => console.error('Admin notification email error:', err))
+
+    if (requester_email) {
+      sendRequestConfirmation({
+        requesterName: requester_name,
+        requesterEmail: requester_email,
         assetTag: asset.asset_tag,
         assetName: asset.name,
         requestType: request_type,
-        priority: priority ?? 'medium',
-        requesterName: requester_name,
-        requesterEmail: requester_email,
-        requesterPhone: requester_phone,
-        reason,
-      }),
-      requester_email ? sendRequestConfirmation({
-        requesterName: requester_name,
-        requesterEmail: requester_email,
-        assetTag: asset.asset_tag,
-        assetName: asset.name,
-        requestType: request_type,
-      }) : Promise.resolve(),
-    ]).catch(err => console.error('Email send error:', err))
+      }).catch(err => console.error('Requester confirmation email error:', err))
+    }
 
     return NextResponse.json({ id }, { status: 201 })
   } catch (err) {
