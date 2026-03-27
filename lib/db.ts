@@ -50,6 +50,7 @@ async function sql(query: string, args: SqlValue[] = []): Promise<{ rows: Row[];
 
 export function resetDb(): void { /* no-op for Turso */ }
 export function getDb() { return { execute: sql } }
+export async function rawSql(query: string, args: SqlValue[] = []) { return sql(query, args) }
 
 async function initSchema() {
   await sql(`CREATE TABLE IF NOT EXISTS users (

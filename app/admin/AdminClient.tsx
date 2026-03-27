@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [backupLoading, setBackupLoading] = useState(false)
   const [restoreLoading, setRestoreLoading] = useState(false)
   const [restartLoading, setRestartLoading] = useState(false)
+  const [clearLoading, setClearLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const restoreInputRef = useRef<HTMLInputElement>(null)
@@ -297,6 +298,36 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+        {/* Danger Zone */}
+        <div className="card p-6 space-y-4 border-red-200">
+          <h2 className="font-semibold text-red-700 text-lg">Danger Zone</h2>
+          <p className="text-sm text-gray-500">Permanently delete all assets, locations, allocations and requests. Your user accounts will be kept.</p>
+          <button
+            onClick={async () => {
+              if (!confirm('DELETE ALL DATA?\n\nThis will permanently remove all assets, locations, allocations and requests.\n\nYour user accounts will be kept.\n\nThis cannot be undone.')) return
+              if (!confirm('Are you absolutely sure? Type OK to confirm.\n\nAll asset data will be gone forever.')) return
+              setClearLoading(true); setError(''); setSuccess('')
+              try {
+                const res = await fetch('/api/admin/clear', { method: 'DELETE' })
+                if (res.ok) {
+                  setSuccess('All data cleared. You can now start adding real assets.')
+                } else {
+                  const d = await res.json()
+                  setError(d.error ?? 'Failed to clear data')
+                }
+              } catch {
+                setError('Failed to clear data')
+              } finally {
+                setClearLoading(false)
+              }
+            }}
+            disabled={clearLoading}
+            className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+          >
+            {clearLoading ? 'Clearing…' : 'Clear All Data'}
+          </button>
+        </div>
+
         {/* Database Backup & Restore */}
         <div className="card p-6 space-y-4">
           <h2 className="font-semibold text-gray-900 text-lg">Database Backup & Restore</h2>
