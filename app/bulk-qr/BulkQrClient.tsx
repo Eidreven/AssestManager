@@ -19,16 +19,23 @@ interface Props {
   teachers: string[]
 }
 
+// Sticker dimensions: 99.1mm x 139mm, 3x3 = 9 QR codes per sticker
+// Each cell: ~32.7mm wide x 46mm tall
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size))
+  return chunks
+}
+
 export default function BulkQrClient({ assets, teachers }: Props) {
   const [typeFilter, setTypeFilter] = useState('all')
   const [allocationFilter, setAllocationFilter] = useState('all')
   const [qrUrls, setQrUrls] = useState<Record<number, string>>({})
   const [generating, setGenerating] = useState(false)
 
-  // Unique sorted types
   const types = Array.from(new Set(assets.map(a => a.type))).sort()
 
-  // Apply filters
   const filtered = assets.filter(a => {
     if (typeFilter !== 'all' && a.type !== typeFilter) return false
     if (allocationFilter === 'available') return a.status === 'available'
@@ -48,7 +55,7 @@ export default function BulkQrClient({ assets, teachers }: Props) {
       filtered.map(async a => {
         const url = `${origin}/scan/${a.id}`
         const dataUrl = await QRCode.toDataURL(url, {
-          width: 200,
+          width: 300,
           margin: 1,
           color: { dark: '#1e3a8a', light: '#ffffff' },
         })
@@ -62,57 +69,85 @@ export default function BulkQrClient({ assets, teachers }: Props) {
 
   useEffect(() => { generateQrs() }, [generateQrs])
 
+  const stickerPages = chunk(filtered, 9)
+  const totalStickers = stickerPages.length
+
   return (
     <>
       <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { margin: 0; background: white; }
-          .print-area { padding: 0.2in; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        }
-        .label-grid {
+        /* Screen preview */
+        .sticker-page {
+          width: 99.1mm;
+          height: 139mm;
           display: grid;
-          grid-template-columns: repeat(3, 1in);
-          gap: 0.12in;
+          grid-template-columns: repeat(3, 1fr);
+          grid-template-rows: repeat(3, 1fr);
+          box-sizing: border-box;
+          border: 1px dashed #cbd5e1;
+          background: white;
+          margin: 0 auto 24px auto;
+          overflow: hidden;
         }
-        .qr-label {
-          width: 1in;
-          height: 1in;
+        .qr-cell {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          border: 0.5pt solid #d1d5db;
+          border: 0.3px solid #e2e8f0;
           box-sizing: border-box;
-          padding: 2pt;
-          background: white;
+          padding: 1.5mm;
           overflow: hidden;
         }
-        .qr-label img {
-          width: 0.70in;
-          height: 0.70in;
-          flex-shrink: 0;
+        .qr-cell img {
+          width: 26mm;
+          height: 26mm;
           display: block;
+          flex-shrink: 0;
         }
         .qr-tag {
-          font-size: 5.5pt;
+          font-size: 6pt;
           font-weight: 700;
           font-family: ui-monospace, monospace;
           color: #1e3a8a;
           text-align: center;
+          margin-top: 1mm;
           line-height: 1.2;
-          margin-top: 1pt;
         }
         .qr-name {
-          font-size: 4.5pt;
-          color: #6b7280;
+          font-size: 5pt;
+          color: #64748b;
           text-align: center;
-          line-height: 1.2;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          max-width: 0.92in;
+          max-width: 30mm;
+          line-height: 1.2;
+        }
+        @media print {
+          .no-print { display: none !important; }
+          body { margin: 0; padding: 0; background: white; }
+
+          /* Each sticker is one page, exactly the sticker size */
+          @page {
+            size: 99.1mm 139mm;
+            margin: 0;
+          }
+          .sticker-page {
+            width: 99.1mm;
+            height: 139mm;
+            margin: 0;
+            border: none;
+            page-break-after: always;
+            break-after: page;
+          }
+          .sticker-page:last-child {
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
       `}</style>
 
@@ -122,7 +157,9 @@ export default function BulkQrClient({ assets, teachers }: Props) {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Bulk QR Labels</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {generating ? 'Generating…' : `${filtered.length} labels · 3 per row · 1″ × 1″`}
+              {generating
+                ? 'Generating…'
+                : `${filtered.length} QR codes · ${totalStickers} sticker${totalStickers !== 1 ? 's' : ''} · 9 per sticker (3×3) · 99.1×139mm`}
             </p>
           </div>
           <button
@@ -168,36 +205,40 @@ export default function BulkQrClient({ assets, teachers }: Props) {
           )}
         </div>
 
-        {filtered.length === 0 && !generating && (
+        {!generating && filtered.length === 0 && (
           <div className="text-center py-12 text-gray-400">No assets match the selected filters.</div>
+        )}
+
+        {!generating && filtered.length > 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <strong>Print tip:</strong> In the print dialog, set paper size to <strong>99.1 × 139mm</strong> (or &quot;Custom&quot;), set margins to <strong>None</strong>, and disable &quot;Fit to page&quot;. Load your sticker sheets in the printer.
+          </p>
         )}
       </div>
 
-      {/* Label grid — visible on screen + print */}
-      {filtered.length > 0 && (
-        <div className="print-area">
-          {generating ? (
-            <div className="no-print flex items-center justify-center py-16 text-gray-400 gap-3">
-              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-              </svg>
-              Generating QR codes…
-            </div>
-          ) : (
-            <div className="label-grid">
-              {filtered.map(asset => (
-                <div key={asset.id} className="qr-label">
-                  {qrUrls[asset.id] && (
-                    <img src={qrUrls[asset.id]} alt={asset.asset_tag} />
-                  )}
-                  <div className="qr-tag">{asset.asset_tag}</div>
-                  <div className="qr-name">{asset.name}</div>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Sticker pages */}
+      {generating ? (
+        <div className="no-print flex items-center justify-center py-16 text-gray-400 gap-3">
+          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          Generating QR codes…
         </div>
+      ) : (
+        stickerPages.map((page, pi) => (
+          <div key={pi} className="sticker-page">
+            {page.map(asset => (
+              <div key={asset.id} className="qr-cell">
+                {qrUrls[asset.id] && (
+                  <img src={qrUrls[asset.id]} alt={asset.asset_tag} />
+                )}
+                <div className="qr-tag">{asset.asset_tag}</div>
+                <div className="qr-name">{asset.name}</div>
+              </div>
+            ))}
+          </div>
+        ))
       )}
     </>
   )
