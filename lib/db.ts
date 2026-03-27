@@ -240,6 +240,12 @@ export const db = {
   async updateUserPassword(id: number, passwordHash: string): Promise<void> {
     await sql('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id])
   },
+  async updateUser(id: number, name: string, email: string, role: string): Promise<void> {
+    await sql('UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?', [name, email, role, id])
+  },
+  async deleteUser(id: number): Promise<void> {
+    await sql('DELETE FROM users WHERE id = ?', [id])
+  },
   async createPasswordResetToken(userId: number, token: string, expiresAt: string): Promise<void> {
     // Invalidate any existing tokens for this user
     await sql('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ?', [userId])

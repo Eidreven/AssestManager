@@ -11,6 +11,8 @@ export default function AdminPage() {
   const [locForm, setLocForm] = useState({ name: '', description: '' })
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'teacher' })
   const [editingLoc, setEditingLoc] = useState<{ id: number; name: string; description: string } | null>(null)
+  const [editingUser, setEditingUser] = useState<{ id: number; name: string; email: string; role: string } | null>(null)
+  const [userEditLoading, setUserEditLoading] = useState(false)
   const [locLoading, setLocLoading] = useState(false)
   const [userLoading, setUserLoading] = useState(false)
   const [backupLoading, setBackupLoading] = useState(false)
@@ -130,6 +132,40 @@ export default function AdminPage() {
     } finally {
       setRestoreLoading(false)
       if (restoreInputRef.current) restoreInputRef.current.value = ''
+    }
+  }
+
+  async function saveEditUser() {
+    if (!editingUser) return
+    setUserEditLoading(true); setError(''); setSuccess('')
+    const res = await fetch(`/api/users/${editingUser.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editingUser.name, email: editingUser.email, role: editingUser.role }),
+    })
+    if (res.ok) {
+      setUsers(prev => prev.map(u => u.id === editingUser.id
+        ? { ...u, name: editingUser.name, email: editingUser.email, role: editingUser.role }
+        : u
+      ))
+      setSuccess('User updated.')
+      setEditingUser(null)
+    } else {
+      const data = await res.json()
+      setError(data.error ?? 'Failed to update user')
+    }
+    setUserEditLoading(false)
+  }
+
+  async function deleteUser(id: number, name: string) {
+    if (!confirm(`Delete account for "${name}"? This cannot be undone.`)) return
+    const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setUsers(prev => prev.filter(u => u.id !== id))
+      setSuccess('User deleted.')
+    } else {
+      const data = await res.json()
+      setError(data.error ?? 'Failed to delete user')
     }
   }
 
@@ -272,25 +308,58 @@ export default function AdminPage() {
                     <th className="px-4 py-2 font-medium">Email</th>
                     <th className="px-4 py-2 font-medium">Role</th>
                     <th className="px-4 py-2 font-medium">Since</th>
+                    <th className="px-4 py-2 font-medium w-24"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {users.map(u => (
                     <tr key={u.id}>
-                      <td className="px-4 py-2 font-medium">{u.name}</td>
-                      <td className="px-4 py-2 text-gray-500">{u.email}</td>
-                      <td className="px-4 py-2">
-                        <span className={`badge ${
-                          u.role === 'admin' ? 'bg-blue-100 text-blue-700'
-                          : u.role === 'teacher' ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-gray-400 text-xs">
-                        {new Date(u.created_at).toLocaleDateString('en-GB')}
-                      </td>
+                      {editingUser?.id === u.id ? (
+                        <>
+                          <td className="px-4 py-2">
+                            <input className="input py-1 text-sm" value={editingUser.name}
+                              onChange={e => setEditingUser(f => f ? { ...f, name: e.target.value } : f)} />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input type="email" className="input py-1 text-sm" value={editingUser.email}
+                              onChange={e => setEditingUser(f => f ? { ...f, email: e.target.value } : f)} />
+                          </td>
+                          <td className="px-4 py-2">
+                            <select className="input py-1 text-sm" value={editingUser.role}
+                              onChange={e => setEditingUser(f => f ? { ...f, role: e.target.value } : f)}>
+                              <option value="teacher">Teacher</option>
+                              <option value="staff">Staff</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-2 text-gray-400 text-xs">—</td>
+                          <td className="px-4 py-2 flex gap-2">
+                            <button onClick={saveEditUser} disabled={userEditLoading} className="text-green-600 hover:text-green-800 text-xs font-medium">Save</button>
+                            <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-2 font-medium">{u.name}</td>
+                          <td className="px-4 py-2 text-gray-500">{u.email}</td>
+                          <td className="px-4 py-2">
+                            <span className={`badge ${
+                              u.role === 'admin' ? 'bg-blue-100 text-blue-700'
+                              : u.role === 'teacher' ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-gray-400 text-xs">
+                            {new Date(u.created_at).toLocaleDateString('en-GB')}
+                          </td>
+                          <td className="px-4 py-2 flex gap-3">
+                            <button onClick={() => setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role })} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                            <button onClick={() => deleteUser(u.id, u.name)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
