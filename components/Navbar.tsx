@@ -56,6 +56,17 @@ const NAV_LINKS = [
     ),
   },
   {
+    href: '/bulk-qr',
+    label: 'Bulk QR',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5a.5.5 0 11-1 0 .5.5 0 011 0zM6 6h.01M6 6V4m0 2v2m0 0H4m2 0h2" />
+      </svg>
+    ),
+    adminOnly: true,
+  },
+  {
     href: '/admin',
     label: 'Admin',
     icon: (
