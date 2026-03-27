@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthFromCookies } from '@/lib/auth'
+import { sendAllocationNotification, sendReturnNotification } from '@/lib/email'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
@@ -16,7 +17,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (!allocated_to) return NextResponse.json({ error: 'allocated_to is required' }, { status: 400 })
 
-  // Return current allocation if exists
   if (asset.current_allocation) {
     await db.returnAllocation(asset.current_allocation.id, assetId)
   }
@@ -33,6 +33,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     notes,
   })
 
+  // Get location name for the email
+  const locations = location_id ? await db.getAllLocations() : []
+  const locationName = locations.find(l => l.id === Number(location_id))?.name ?? null
+
+  sendAllocationNotification({
+    assetTag: asset.asset_tag,
+    assetName: asset.name,
+    assetType: asset.type,
+    allocatedTo: allocated_to,
+    allocatedToRole: allocated_to_role ?? null,
+    locationName,
+    purpose: purpose ?? null,
+    isTemporary: Boolean(is_temporary),
+    expectedReturn: expected_return ?? null,
+    allocatedByName: auth.name,
+    notes: notes ?? null,
+  }).catch(err => console.error('Email error:', err))
+
   return NextResponse.json({ id }, { status: 201 })
 }
 
@@ -47,6 +65,16 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'No active allocation' }, { status: 400 })
   }
 
+  const returnedFrom = asset.current_allocation.allocated_to
+
   await db.returnAllocation(asset.current_allocation.id, assetId)
+
+  sendReturnNotification({
+    assetTag: asset.asset_tag,
+    assetName: asset.name,
+    returnedFrom,
+    returnedByName: auth.name,
+  }).catch(err => console.error('Email error:', err))
+
   return NextResponse.json({ ok: true })
 }

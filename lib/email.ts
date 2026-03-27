@@ -142,7 +142,95 @@ export async function sendRequestConfirmation(params: {
   })
 }
 
-// ── 3. Notify requester of status update ──────────────────────────────────────
+// ── 4. Notify admin of new allocation ────────────────────────────────────────
+
+export async function sendAllocationNotification(params: {
+  assetTag: string
+  assetName: string
+  assetType: string
+  allocatedTo: string
+  allocatedToRole: string | null
+  locationName?: string | null
+  purpose?: string | null
+  isTemporary: boolean
+  expectedReturn?: string | null
+  allocatedByName: string
+  notes?: string | null
+}) {
+  const { assetTag, assetName, assetType, allocatedTo, allocatedToRole, locationName, purpose, isTemporary, expectedReturn, allocatedByName, notes } = params
+
+  const body = `
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      A device has been allocated by <strong>${allocatedByName}</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <tr><td style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+        <span style="font-weight:700;color:#1e3a8a;font-family:monospace;font-size:14px;">${assetTag}</span>
+        <span style="color:#6b7280;font-size:14px;margin-left:8px;">— ${assetName} (${assetType})</span>
+      </td></tr>
+      <tr><td style="padding:16px;">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          ${row('Allocated To', allocatedTo)}
+          ${row('Role', allocatedToRole)}
+          ${row('Location', locationName)}
+          ${row('Purpose', purpose)}
+          ${row('Type', isTemporary ? '⏳ Temporary' : '📌 Permanent')}
+          ${expectedReturn ? row('Expected Return', expectedReturn) : ''}
+          ${notes ? row('Notes', notes) : ''}
+        </table>
+      </td></tr>
+    </table>
+    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets"
+       style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
+      View Assets
+    </a>
+  `
+
+  await resend.emails.send({
+    from: FROM,
+    to: ADMIN_EMAIL,
+    subject: `Device allocated — ${assetTag} → ${allocatedTo}`,
+    html: baseTemplate('Device Allocated', body),
+  })
+}
+
+// ── 5. Notify admin when device is returned ───────────────────────────────────
+
+export async function sendReturnNotification(params: {
+  assetTag: string
+  assetName: string
+  returnedFrom: string
+  returnedByName: string
+}) {
+  const { assetTag, assetName, returnedFrom, returnedByName } = params
+
+  const body = `
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      A device has been marked as returned by <strong>${returnedByName}</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <tr><td style="padding:16px;">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          ${row('Device', `${assetTag} — ${assetName}`)}
+          ${row('Returned From', returnedFrom)}
+          ${row('Status', '✅ Now Available')}
+        </table>
+      </td></tr>
+    </table>
+    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets"
+       style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
+      View Assets
+    </a>
+  `
+
+  await resend.emails.send({
+    from: FROM,
+    to: ADMIN_EMAIL,
+    subject: `Device returned — ${assetTag} now available`,
+    html: baseTemplate('Device Returned', body),
+  })
+}
+
 
 export async function sendRequestStatusUpdate(params: {
   requesterName: string
