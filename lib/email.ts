@@ -55,6 +55,38 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: '🔴 Urgent',
 }
 
+// ── 0. Password reset ─────────────────────────────────────────────────────────
+
+export async function sendPasswordResetEmail(params: {
+  toEmail: string
+  toName: string
+  resetUrl: string
+}) {
+  const { toEmail, toName, resetUrl } = params
+
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${toName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      We received a request to reset your password for MPS Asset Manager.
+      Click the button below to choose a new password.
+    </p>
+    <a href="${resetUrl}"
+       style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:15px;margin-bottom:20px;">
+      Reset My Password
+    </a>
+    <p style="margin:20px 0 0;color:#6b7280;font-size:13px;">
+      This link expires in <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email.
+    </p>
+  `
+
+  await resend.emails.send({
+    from: FROM,
+    to: toEmail,
+    subject: 'Reset your MPS Asset Manager password',
+    html: baseTemplate('Password Reset', body),
+  })
+}
+
 // ── 1. Notify admin of new request ────────────────────────────────────────────
 
 export async function sendNewRequestNotification(params: {

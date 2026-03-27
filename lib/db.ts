@@ -117,6 +117,14 @@ async function initSchema() {
   )`)
   try { await sql(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
   try { await sql(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
+  await sql(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT UNIQUE NOT NULL,
+    expires_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`)
 }
 
 // Run schema init silently — errors are non-fatal (tables may already exist)
@@ -228,6 +236,21 @@ export const db = {
   async createUser(name: string, email: string, passwordHash: string, role = 'staff'): Promise<number> {
     const r = await sql('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)', [name, email, passwordHash, role])
     return r.lastInsertRowid!
+  },
+  async updateUserPassword(id: number, passwordHash: string): Promise<void> {
+    await sql('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id])
+  },
+  async createPasswordResetToken(userId: number, token: string, expiresAt: string): Promise<void> {
+    // Invalidate any existing tokens for this user
+    await sql('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ?', [userId])
+    await sql('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)', [userId, token, expiresAt])
+  },
+  async getPasswordResetToken(token: string): Promise<{ id: number; user_id: number; expires_at: string; used: number } | undefined> {
+    const r = await sql('SELECT * FROM password_reset_tokens WHERE token = ?', [token])
+    return r.rows[0] as unknown as { id: number; user_id: number; expires_at: string; used: number } | undefined
+  },
+  async markTokenUsed(token: string): Promise<void> {
+    await sql('UPDATE password_reset_tokens SET used = 1 WHERE token = ?', [token])
   },
   async getAllUsers(): Promise<Omit<User, 'password_hash'>[]> {
     const r = await sql('SELECT id, name, email, role, created_at FROM users ORDER BY name')
