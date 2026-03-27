@@ -10,10 +10,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const asset = await db.getAssetById(Number(params.id))
   if (!asset) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Use the request's own host so QR works on any domain (Vercel, custom, local)
-  const host = req.headers.get('host') ?? 'localhost:3000'
-  const protocol = host.includes('localhost') ? 'http' : 'https'
-  const url = `${protocol}://${host}/scan/${asset.id}`
+  // Prefer NEXT_PUBLIC_BASE_URL env var (set to your stable Vercel/custom domain)
+  // Falls back to the request host so local dev still works
+  const base = process.env.NEXT_PUBLIC_BASE_URL
+    ?? (() => {
+      const host = req.headers.get('host') ?? 'localhost:3000'
+      const protocol = host.includes('localhost') ? 'http' : 'https'
+      return `${protocol}://${host}`
+    })()
+  const url = `${base}/scan/${asset.id}`
 
   const format = req.nextUrl.searchParams.get('format') ?? 'png'
 

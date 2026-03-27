@@ -45,7 +45,7 @@ export default function BulkQrClient({ assets, teachers }: Props) {
   const generateQrs = useCallback(async () => {
     if (filtered.length === 0) { setQrUrls({}); return }
     setGenerating(true)
-    const origin = window.location.origin
+    const origin = process.env.NEXT_PUBLIC_BASE_URL ?? window.location.origin
     const results = await Promise.all(
       filtered.map(async a => {
         const dataUrl = await QRCode.toDataURL(`${origin}/scan/${a.id}`, {
