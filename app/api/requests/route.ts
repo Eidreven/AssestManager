@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthFromCookies } from '@/lib/auth'
+import { sendNewRequestNotification, sendRequestConfirmation } from '@/lib/email'
 
 export async function GET() {
   const auth = getAuthFromCookies()
@@ -39,6 +40,28 @@ export async function POST(req: NextRequest) {
       reason,
       duration,
     })
+
+    // Send emails (non-blocking — don't fail the request if email fails)
+    Promise.all([
+      sendNewRequestNotification({
+        requestId: id,
+        assetTag: asset.asset_tag,
+        assetName: asset.name,
+        requestType: request_type,
+        priority: priority ?? 'medium',
+        requesterName: requester_name,
+        requesterEmail: requester_email,
+        requesterPhone: requester_phone,
+        reason,
+      }),
+      requester_email ? sendRequestConfirmation({
+        requesterName: requester_name,
+        requesterEmail: requester_email,
+        assetTag: asset.asset_tag,
+        assetName: asset.name,
+        requestType: request_type,
+      }) : Promise.resolve(),
+    ]).catch(err => console.error('Email send error:', err))
 
     return NextResponse.json({ id }, { status: 201 })
   } catch (err) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthFromCookies } from '@/lib/auth'
+import { sendRequestStatusUpdate } from '@/lib/email'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
@@ -13,6 +14,26 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
-  await db.updateRequestStatus(Number(params.id), status, auth.userId, handler_notes)
+  const requestId = Number(params.id)
+
+  // Fetch request details before updating (to get requester email + asset info)
+  const requests = await db.getAllRequests()
+  const request = requests.find(r => r.id === requestId)
+
+  await db.updateRequestStatus(requestId, status, auth.userId, handler_notes)
+
+  // Email requester if they provided an email
+  if (request?.requester_email) {
+    sendRequestStatusUpdate({
+      requesterName: request.requester_name,
+      requesterEmail: request.requester_email,
+      assetTag: request.asset_tag ?? '',
+      assetName: request.asset_name ?? '',
+      requestType: request.request_type,
+      status,
+      handlerNotes: handler_notes,
+    }).catch(err => console.error('Email send error:', err))
+  }
+
   return NextResponse.json({ ok: true })
 }
