@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const ADMIN_EMAIL = 'katherinent2025@gmail.com'
+const ADMIN_EMAIL = 'shamikararavindu@gmail.com'
 const FROM = 'MPS Asset Manager <onboarding@resend.dev>'
 const SCHOOL = 'Macfarlane Primary School'
 
