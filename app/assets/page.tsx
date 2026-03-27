@@ -15,13 +15,24 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; q?: string }
+  searchParams?: { status?: string; q?: string; teacher?: string }
 }) {
   const auth = getAuthFromCookies()!
-  let assets = await db.getAllAssets()
+  const [allAssets, teachers] = await Promise.all([
+    db.getAllAssets(),
+    db.getTeachers(),
+  ])
+
+  let assets = allAssets
 
   if (searchParams?.status) {
     assets = assets.filter(a => a.status === searchParams.status)
+  }
+  if (searchParams?.teacher) {
+    assets = assets.filter(a =>
+      a.current_allocation?.allocated_to === searchParams.teacher &&
+      a.current_allocation?.allocated_to_role === 'Teacher'
+    )
   }
   if (searchParams?.q) {
     const q = searchParams.q.toLowerCase()
@@ -64,11 +75,35 @@ export default async function AssetsPage({
               className="input"
             />
           </form>
+
+          {/* Teacher filter */}
+          {teachers.length > 0 && (
+            <form method="GET" action="/assets">
+              {searchParams?.q && <input type="hidden" name="q" value={searchParams.q} />}
+              {searchParams?.status && <input type="hidden" name="status" value={searchParams.status} />}
+              <select
+                name="teacher"
+                className="input"
+                defaultValue={searchParams?.teacher ?? ''}
+                onChange={e => (e.target.form as HTMLFormElement).submit()}
+              >
+                <option value="">All Teachers</option>
+                {teachers.map(t => (
+                  <option key={t.id} value={t.name}>{t.name}</option>
+                ))}
+              </select>
+            </form>
+          )}
+
+          {/* Status filter */}
           <div className="flex gap-2 flex-wrap">
             {['', 'available', 'allocated', 'maintenance', 'retired'].map(s => (
               <Link
                 key={s}
-                href={s ? `/assets?status=${s}` : '/assets'}
+                href={s
+                  ? `/assets?status=${s}${searchParams?.teacher ? `&teacher=${encodeURIComponent(searchParams.teacher)}` : ''}`
+                  : `/assets${searchParams?.teacher ? `?teacher=${encodeURIComponent(searchParams.teacher)}` : ''}`
+                }
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
                   (searchParams?.status ?? '') === s
                     ? 'bg-blue-700 text-white border-blue-700'
@@ -81,6 +116,14 @@ export default async function AssetsPage({
           </div>
         </div>
 
+        {/* Active teacher filter banner */}
+        {searchParams?.teacher && (
+          <div className="flex items-center gap-3 px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+            <span>👩‍🏫 Showing devices allocated to <strong>{searchParams.teacher}</strong></span>
+            <Link href="/assets" className="ml-auto text-green-600 hover:text-green-800 font-medium">Clear ×</Link>
+          </div>
+        )}
+
         {/* Table */}
         <div className="card overflow-hidden">
           {assets.length === 0 ? (
@@ -90,7 +133,7 @@ export default async function AssetsPage({
                   d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
               </svg>
               <p className="text-gray-500">No assets found</p>
-              {auth.role === 'admin' && (
+              {auth.role === 'admin' && !searchParams?.teacher && (
                 <Link href="/assets/new" className="btn-primary mt-4 inline-flex">Register first asset</Link>
               )}
             </div>
@@ -124,7 +167,13 @@ export default async function AssetsPage({
                       </td>
                       <td className="px-4 py-3 text-gray-500">{asset.location_name ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-600">
-                        {asset.current_allocation?.allocated_to ?? '—'}
+                        {asset.current_allocation
+                          ? <span>{asset.current_allocation.allocated_to}
+                              {asset.current_allocation.allocated_to_role
+                                ? <span className="text-gray-400 text-xs ml-1">({asset.current_allocation.allocated_to_role})</span>
+                                : null}
+                            </span>
+                          : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <Link href={`/asset/${asset.id}`} className="btn-secondary text-xs px-3 py-1">
@@ -142,3 +191,4 @@ export default async function AssetsPage({
     </AppShell>
   )
 }
+

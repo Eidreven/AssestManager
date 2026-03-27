@@ -20,9 +20,10 @@ const STATUSES = [
   { value: 'retired', label: 'Retired' },
 ]
 
-export default function ReportsPage() {
+export default function ReportsClient({ teachers }: { teachers: string[] }) {
   const [type, setType] = useState('all')
   const [status, setStatus] = useState('all')
+  const [teacher, setTeacher] = useState('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -30,7 +31,7 @@ export default function ReportsPage() {
     setLoading(true)
     setError('')
     try {
-      const params = new URLSearchParams({ type, status })
+      const params = new URLSearchParams({ type, status, teacher })
       const res = await fetch(`/api/reports?${params}`)
       if (!res.ok) {
         const data = await res.json()
@@ -55,6 +56,7 @@ export default function ReportsPage() {
 
   const typeLabel = TYPES.find(t => t.value === type)?.label ?? 'All'
   const statusLabel = STATUSES.find(s => s.value === status)?.label ?? 'All'
+  const teacherLabel = teacher === 'all' ? 'All Teachers' : teacher
 
   return (
     <div>
@@ -82,6 +84,17 @@ export default function ReportsPage() {
                 ))}
               </select>
             </div>
+            {teachers.length > 0 && (
+              <div className="sm:col-span-2">
+                <label className="label">Teacher</label>
+                <select className="input" value={teacher} onChange={e => setTeacher(e.target.value)}>
+                  <option value="all">All Teachers</option>
+                  {teachers.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -97,7 +110,13 @@ export default function ReportsPage() {
               <li>Current allocation details (if allocated)</li>
             </ul>
             <p className="pt-2 text-gray-600">
-              Filter: <span className="font-medium text-gray-800">{typeLabel}</span> &mdash; <span className="font-medium text-gray-800">{statusLabel}</span>
+              Filter:{' '}
+              <span className="font-medium text-gray-800">{typeLabel}</span>
+              {' — '}
+              <span className="font-medium text-gray-800">{statusLabel}</span>
+              {teacher !== 'all' && (
+                <> — <span className="font-medium text-gray-800">👩‍🏫 {teacherLabel}</span></>
+              )}
             </p>
           </div>
 

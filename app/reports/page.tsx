@@ -1,10 +1,14 @@
+export const dynamic = 'force-dynamic'
+
 import AppShell from '@/components/AppShell'
 import ReportsClient from './ReportsClient'
+import { db } from '@/lib/db'
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  const teachers = await db.getTeachers()
   return (
     <AppShell>
-      <ReportsClient />
+      <ReportsClient teachers={teachers.map(t => t.name)} />
     </AppShell>
   )
 }

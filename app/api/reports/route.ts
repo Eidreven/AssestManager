@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const typeFilter = searchParams.get('type') ?? 'all'
   const statusFilter = searchParams.get('status') ?? 'all'
+  const teacherFilter = searchParams.get('teacher') ?? 'all'
 
   const db = getDb()
 
@@ -50,6 +51,11 @@ export async function GET(req: NextRequest) {
     args.push(statusFilter)
   }
 
+  if (teacherFilter !== 'all') {
+    sql += ` AND al.allocated_to = ? AND al.allocated_to_role = 'Teacher'`
+    args.push(teacherFilter)
+  }
+
   sql += ` ORDER BY a.asset_tag ASC`
 
   const result = await db.execute(sql, args)
@@ -74,8 +80,9 @@ export async function GET(req: NextRequest) {
 
   const typeLabel = typeFilter === 'all' ? 'All' : typeFilter
   const statusLabel = statusFilter === 'all' ? 'All' : statusFilter
+  const teacherLabel = teacherFilter === 'all' ? '' : `-${teacherFilter.replace(/\s+/g, '_')}`
   const date = new Date().toISOString().slice(0, 10)
-  const filename = `assets-report-${typeLabel}-${statusLabel}-${date}.xlsx`
+  const filename = `assets-report-${typeLabel}-${statusLabel}${teacherLabel}-${date}.xlsx`
 
   return new NextResponse(buffer, {
     headers: {
