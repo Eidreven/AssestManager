@@ -24,15 +24,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   // Email requester if they provided an email
   if (request?.requester_email) {
-    sendRequestStatusUpdate({
-      requesterName: request.requester_name,
-      requesterEmail: request.requester_email,
-      assetTag: request.asset_tag ?? '',
-      assetName: request.asset_name ?? '',
-      requestType: request.request_type,
-      status,
-      handlerNotes: handler_notes,
-    }).catch(err => console.error('Email send error:', err))
+    try {
+      await sendRequestStatusUpdate({
+        requesterName: request.requester_name,
+        requesterEmail: request.requester_email,
+        assetTag: request.asset_tag ?? '',
+        assetName: request.asset_name ?? '',
+        requestType: request.request_type,
+        status,
+        handlerNotes: handler_notes,
+      })
+    } catch (err) { console.error('Status update email error:', err) }
   }
 
   return NextResponse.json({ ok: true })

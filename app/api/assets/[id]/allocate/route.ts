@@ -37,19 +37,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const locations = location_id ? await db.getAllLocations() : []
   const locationName = locations.find(l => l.id === Number(location_id))?.name ?? null
 
-  sendAllocationNotification({
-    assetTag: asset.asset_tag,
-    assetName: asset.name,
-    assetType: asset.type,
-    allocatedTo: allocated_to,
-    allocatedToRole: allocated_to_role ?? null,
-    locationName,
-    purpose: purpose ?? null,
-    isTemporary: Boolean(is_temporary),
-    expectedReturn: expected_return ?? null,
-    allocatedByName: auth.name,
-    notes: notes ?? null,
-  }).catch(err => console.error('Email error:', err))
+  try {
+    await sendAllocationNotification({
+      assetTag: asset.asset_tag,
+      assetName: asset.name,
+      assetType: asset.type,
+      allocatedTo: allocated_to,
+      allocatedToRole: allocated_to_role ?? null,
+      locationName,
+      purpose: purpose ?? null,
+      isTemporary: Boolean(is_temporary),
+      expectedReturn: expected_return ?? null,
+      allocatedByName: auth.name,
+      notes: notes ?? null,
+    })
+  } catch (err) { console.error('Allocation email error:', err) }
 
   return NextResponse.json({ id }, { status: 201 })
 }
@@ -69,12 +71,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   await db.returnAllocation(asset.current_allocation.id, assetId)
 
-  sendReturnNotification({
-    assetTag: asset.asset_tag,
-    assetName: asset.name,
-    returnedFrom,
-    returnedByName: auth.name,
-  }).catch(err => console.error('Email error:', err))
+  try {
+    await sendReturnNotification({
+      assetTag: asset.asset_tag,
+      assetName: asset.name,
+      returnedFrom,
+      returnedByName: auth.name,
+    })
+  } catch (err) { console.error('Return email error:', err) }
 
   return NextResponse.json({ ok: true })
 }
