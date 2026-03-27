@@ -173,9 +173,18 @@ export default function ScanForm({ assetId, loggedInUser }: Props) {
         {progressBar}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
           {loggedInUser && (
-            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2 font-medium">
-              👋 Hello, {loggedInUser.name}
-            </p>
+            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-2">
+              <p className="text-sm text-green-700 font-medium">👋 Hello, {loggedInUser.name}</p>
+              <button
+                onClick={async () => {
+                  await fetch('/api/auth/logout', { method: 'POST' })
+                  window.location.reload()
+                }}
+                className="text-xs text-gray-400 hover:text-gray-600 underline ml-3 whitespace-nowrap"
+              >
+                Sign out
+              </button>
+            </div>
           )}
           <h2 className="text-xl font-bold text-gray-900">What do you need?</h2>
           <div className="space-y-3">
