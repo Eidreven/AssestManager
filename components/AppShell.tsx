@@ -13,8 +13,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {children}
         </div>
-        <div className="lg:pl-0 px-4 sm:px-6 lg:px-8 pb-6 text-center">
+        <div className="lg:pl-0 px-4 sm:px-6 lg:px-8 pb-6 text-center space-y-0.5">
           <p className="text-xs text-gray-300">MPS Asset Manager · v1.0-beta</p>
+          <p className="text-xs text-gray-300">Built by <span className="font-medium">Ravindu Shamikara</span> · <span className="font-medium">@Clentura IT</span></p>
         </div>
       </main>
     </div>
