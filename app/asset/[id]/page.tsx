@@ -104,6 +104,14 @@ export default async function AssetDetailPage({ params }: { params: { id: string
               <div className="flex-1 grid sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
                 <Detail label="Serial Number" value={asset.serial_number} />
                 <Detail label="Location" value={asset.location_name} />
+                {asset.set_name && (
+                  <div>
+                    <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Class Set</p>
+                    <a href={`/sets/${asset.set_id}`} className="text-blue-600 hover:underline font-medium text-sm">
+                      📦 {asset.set_name}
+                    </a>
+                  </div>
+                )}
                 <Detail label="Purchase Date" value={formatDate(asset.purchase_date)} />
                 <Detail label="Warranty Expiry" value={formatDate(asset.warranty_expiry)} />
                 {asset.notes && (

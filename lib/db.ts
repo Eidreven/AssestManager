@@ -117,6 +117,16 @@ async function initSchema() {
   )`)
   try { await sql(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
   try { await sql(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
+  // Asset sets
+  await sql(`CREATE TABLE IF NOT EXISTS asset_sets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    responsible_teacher TEXT,
+    location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`)
+  try { await sql(`ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`) } catch {}
   await sql(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -148,6 +158,17 @@ export interface Location {
   created_at: string
 }
 
+export interface AssetSet {
+  id: number
+  name: string
+  description: string | null
+  responsible_teacher: string | null
+  location_id: number | null
+  location_name: string | null
+  created_at: string
+  asset_count: number
+}
+
 export interface Asset {
   id: number
   asset_tag: string
@@ -157,6 +178,7 @@ export interface Asset {
   serial_number: string | null
   status: 'available' | 'allocated' | 'maintenance' | 'retired'
   location_id: number | null
+  set_id: number | null
   notes: string | null
   purchase_date: string | null
   warranty_expiry: string | null
@@ -166,6 +188,7 @@ export interface Asset {
 
 export interface AssetWithDetails extends Asset {
   location_name: string | null
+  set_name: string | null
   current_allocation: AllocationWithDetails | null
 }
 
@@ -283,15 +306,75 @@ export const db = {
     await sql('DELETE FROM locations WHERE id = ?', [id])
   },
 
+  // Asset Sets
+  async getAllSets(): Promise<AssetSet[]> {
+    const r = await sql(`
+      SELECT s.*, l.name AS location_name,
+             COUNT(a.id) AS asset_count
+      FROM asset_sets s
+      LEFT JOIN locations l ON s.location_id = l.id
+      LEFT JOIN assets a ON a.set_id = s.id
+      GROUP BY s.id ORDER BY s.name
+    `)
+    return r.rows as unknown as AssetSet[]
+  },
+  async getSetById(id: number): Promise<AssetSet | undefined> {
+    const r = await sql(`
+      SELECT s.*, l.name AS location_name,
+             COUNT(a.id) AS asset_count
+      FROM asset_sets s
+      LEFT JOIN locations l ON s.location_id = l.id
+      LEFT JOIN assets a ON a.set_id = s.id
+      WHERE s.id = ?
+      GROUP BY s.id
+    `, [id])
+    return r.rows[0] as unknown as AssetSet | undefined
+  },
+  async createSet(name: string, description: string | null, responsibleTeacher: string | null, locationId: number | null): Promise<number> {
+    const r = await sql(`INSERT INTO asset_sets (name, description, responsible_teacher, location_id) VALUES (?, ?, ?, ?)`,
+      [name, description, responsibleTeacher, locationId])
+    return r.lastInsertRowid!
+  },
+  async updateSet(id: number, name: string, description: string | null, responsibleTeacher: string | null, locationId: number | null): Promise<void> {
+    await sql(`UPDATE asset_sets SET name = ?, description = ?, responsible_teacher = ?, location_id = ? WHERE id = ?`,
+      [name, description, responsibleTeacher, locationId, id])
+  },
+  async deleteSet(id: number): Promise<void> {
+    await sql(`UPDATE assets SET set_id = NULL WHERE set_id = ?`, [id])
+    await sql(`DELETE FROM asset_sets WHERE id = ?`, [id])
+  },
+  async getAssetsInSet(setId: number): Promise<AssetWithDetails[]> {
+    const r = await sql(`
+      SELECT a.*, l.name AS location_name, s.name AS set_name
+      FROM assets a
+      LEFT JOIN locations l ON a.location_id = l.id
+      LEFT JOIN asset_sets s ON a.set_id = s.id
+      WHERE a.set_id = ?
+      ORDER BY a.asset_tag ASC
+    `, [setId])
+    const rows = r.rows as unknown as (Asset & { location_name: string | null; set_name: string | null })[]
+    return Promise.all(rows.map(async row => ({
+      ...row,
+      current_allocation: await db.getCurrentAllocation(row.id),
+    })))
+  },
+  async addAssetToSet(assetId: number, setId: number): Promise<void> {
+    await sql(`UPDATE assets SET set_id = ? WHERE id = ?`, [setId, assetId])
+  },
+  async removeAssetFromSet(assetId: number): Promise<void> {
+    await sql(`UPDATE assets SET set_id = NULL WHERE id = ?`, [assetId])
+  },
+
   // Assets
   async getAllAssets(): Promise<AssetWithDetails[]> {
     const r = await sql(`
-      SELECT a.*, l.name AS location_name
+      SELECT a.*, l.name AS location_name, s.name AS set_name
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
+      LEFT JOIN asset_sets s ON a.set_id = s.id
       ORDER BY a.asset_tag ASC
     `)
-    const rows = r.rows as unknown as (Asset & { location_name: string | null })[]
+    const rows = r.rows as unknown as (Asset & { location_name: string | null; set_name: string | null })[]
     return Promise.all(rows.map(async row => ({
       ...row,
       current_allocation: await db.getCurrentAllocation(row.id),
@@ -300,24 +383,26 @@ export const db = {
 
   async getAssetById(id: number): Promise<AssetWithDetails | undefined> {
     const r = await sql(`
-      SELECT a.*, l.name AS location_name
+      SELECT a.*, l.name AS location_name, s.name AS set_name
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
+      LEFT JOIN asset_sets s ON a.set_id = s.id
       WHERE a.id = ?
     `, [id])
-    const row = r.rows[0] as unknown as (Asset & { location_name: string | null }) | undefined
+    const row = r.rows[0] as unknown as (Asset & { location_name: string | null; set_name: string | null }) | undefined
     if (!row) return undefined
     return { ...row, current_allocation: await db.getCurrentAllocation(id) }
   },
 
   async getAssetByTag(tag: string): Promise<AssetWithDetails | undefined> {
     const r = await sql(`
-      SELECT a.*, l.name AS location_name
+      SELECT a.*, l.name AS location_name, s.name AS set_name
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
+      LEFT JOIN asset_sets s ON a.set_id = s.id
       WHERE a.asset_tag = ?
     `, [tag])
-    const row = r.rows[0] as unknown as (Asset & { location_name: string | null }) | undefined
+    const row = r.rows[0] as unknown as (Asset & { location_name: string | null; set_name: string | null }) | undefined
     if (!row) return undefined
     return { ...row, current_allocation: await db.getCurrentAllocation(row.id) }
   },
