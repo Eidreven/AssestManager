@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useTheme } from './ThemeProvider'
 
 const NAV_LINKS = [
   {
@@ -98,6 +99,7 @@ export default function Navbar({ user }: NavbarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { theme, toggle } = useTheme()
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -110,7 +112,7 @@ export default function Navbar({ user }: NavbarProps) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-60 min-h-screen bg-blue-900 text-white fixed left-0 top-0 z-30">
+      <aside className="hidden lg:flex flex-col w-60 min-h-screen bg-blue-900 dark:bg-gray-900 text-white fixed left-0 top-0 z-30 border-r border-transparent dark:border-gray-700">
         {/* Brand */}
         <div className="px-5 py-5 border-b border-blue-800">
           <div className="flex items-center gap-3">
@@ -153,6 +155,13 @@ export default function Navbar({ user }: NavbarProps) {
             <p className="text-xs text-blue-300 truncate">{user.email}</p>
             <span className="mt-1 inline-block text-xs text-blue-400 capitalize">{user.role}</span>
           </div>
+          <button onClick={toggle} className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-800 hover:text-white transition-colors">
+            {theme === 'dark'
+              ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
+              : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+            }
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
           <button onClick={handleLogout} className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-800 hover:text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -164,7 +173,7 @@ export default function Navbar({ user }: NavbarProps) {
       </aside>
 
       {/* Mobile topbar */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-blue-900 text-white px-4 py-3 flex items-center justify-between shadow-lg">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-blue-900 dark:bg-gray-900 text-white px-4 py-3 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-2">
           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -184,7 +193,7 @@ export default function Navbar({ user }: NavbarProps) {
       {/* Mobile nav drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-20 pt-14" onClick={() => setMobileOpen(false)}>
-          <div className="absolute top-14 left-0 right-0 bg-blue-900 border-t border-blue-800 px-3 py-3 space-y-1 shadow-xl">
+          <div className="absolute top-14 left-0 right-0 bg-blue-900 dark:bg-gray-900 border-t border-blue-800 dark:border-gray-700 px-3 py-3 space-y-1 shadow-xl">
             {links.map(link => {
               const active = pathname === link.href || pathname.startsWith(link.href + '/')
               return (
