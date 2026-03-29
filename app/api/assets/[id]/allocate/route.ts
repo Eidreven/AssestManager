@@ -13,12 +13,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
 
   const body = await req.json()
-  const { allocated_to, allocated_to_role, location_id, purpose, is_temporary, expected_return, notes } = body
+  const { allocated_to, allocated_to_role, location_id, set_id, purpose, is_temporary, expected_return, notes } = body
 
   if (!allocated_to) return NextResponse.json({ error: 'allocated_to is required' }, { status: 400 })
 
   if (asset.current_allocation) {
     await db.returnAllocation(asset.current_allocation.id, assetId)
+  }
+
+  // Link to class set if provided
+  if (set_id) {
+    await db.addAssetToSet(assetId, Number(set_id))
   }
 
   const id = await db.createAllocation({
@@ -70,6 +75,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const returnedFrom = asset.current_allocation.allocated_to
 
   await db.returnAllocation(asset.current_allocation.id, assetId)
+  // Remove from class set on return
+  if (asset.set_id) await db.removeAssetFromSet(assetId)
 
   try {
     await sendReturnNotification({

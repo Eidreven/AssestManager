@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 interface Location { id: number; name: string }
 interface Teacher { id: number; name: string; email: string }
+interface AssetSet { id: number; name: string; responsible_teacher: string | null; location_id: number | null }
 
 interface Props {
   assetId: number
@@ -12,10 +13,11 @@ interface Props {
   allocationId: number | null
   locations: Location[]
   teachers: Teacher[]
+  sets: AssetSet[]
   mode: 'allocate' | 'return' | 'request'
 }
 
-type AllocTarget = 'teacher' | 'classroom' | 'custom'
+type AllocTarget = 'teacher' | 'classroom' | 'custom' | 'set'
 
 interface AllocForm {
   target: AllocTarget
@@ -26,6 +28,8 @@ interface AllocForm {
   // custom mode
   custom_name: string
   custom_role: string
+  // set mode
+  set_id: string
   // shared
   location_id: string
   purpose: string
@@ -34,7 +38,7 @@ interface AllocForm {
   notes: string
 }
 
-export default function AssetActions({ assetId, assetStatus, allocationId, locations, teachers, mode }: Props) {
+export default function AssetActions({ assetId, assetStatus, allocationId, locations, teachers, sets, mode }: Props) {
   const router = useRouter()
   const [dialog, setDialog] = useState<null | 'allocate' | 'borrow' | 'relocate'>(null)
   const [loading, setLoading] = useState(false)
@@ -42,11 +46,12 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
   const [success, setSuccess] = useState('')
 
   const defaultAllocForm: AllocForm = {
-    target: teachers.length > 0 ? 'teacher' : 'custom',
+    target: sets.length > 0 ? 'set' : teachers.length > 0 ? 'teacher' : 'custom',
     teacher_id: '',
     classroom_id: '',
     custom_name: '',
     custom_role: 'Student',
+    set_id: '',
     location_id: '',
     purpose: '',
     is_temporary: false,
@@ -78,8 +83,17 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
     let allocated_to = ''
     let allocated_to_role = ''
     let location_id: number | undefined = undefined
+    let set_id: number | undefined = undefined
 
-    if (allocForm.target === 'teacher') {
+    if (allocForm.target === 'set') {
+      const s = sets.find(s => String(s.id) === allocForm.set_id)
+      if (!s) { setError('Please select a class set.'); setLoading(false); return }
+      if (!s.responsible_teacher) { setError('This set has no responsible teacher assigned. Edit the set first.'); setLoading(false); return }
+      allocated_to = s.responsible_teacher
+      allocated_to_role = 'Teacher'
+      location_id = s.location_id ?? undefined
+      set_id = s.id
+    } else if (allocForm.target === 'teacher') {
       const t = teachers.find(t => String(t.id) === allocForm.teacher_id)
       if (!t) { setError('Please select a teacher.'); setLoading(false); return }
       allocated_to = t.name
@@ -106,7 +120,10 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
           allocated_to,
           allocated_to_role,
           location_id,
-          purpose: allocForm.purpose || undefined,
+          set_id,
+          purpose: allocForm.target === 'set'
+            ? `Class set: ${sets.find(s => String(s.id) === allocForm.set_id)?.name}`
+            : allocForm.purpose || undefined,
           is_temporary: allocForm.is_temporary,
           expected_return: allocForm.expected_return || undefined,
           notes: allocForm.notes || undefined,
@@ -165,7 +182,7 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
           Mark Returned
         </button>
         {dialog === 'allocate' && (
-          <AllocateDialog form={allocForm} update={updateAlloc} locations={locations} teachers={teachers}
+          <AllocateDialog form={allocForm} update={updateAlloc} locations={locations} teachers={teachers} sets={sets}
             onSubmit={handleAllocate} onClose={() => setDialog(null)} loading={loading} error={error} />
         )}
       </div>
@@ -179,7 +196,7 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
           Allocate Device
         </button>
         {dialog === 'allocate' && (
-          <AllocateDialog form={allocForm} update={updateAlloc} locations={locations} teachers={teachers}
+          <AllocateDialog form={allocForm} update={updateAlloc} locations={locations} teachers={teachers} sets={sets}
             onSubmit={handleAllocate} onClose={() => setDialog(null)} loading={loading} error={error} />
         )}
       </>
@@ -252,11 +269,12 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 
 // ── Allocate dialog ─────────────────────────────────────────────────────────────
 
-function AllocateDialog({ form, update, locations, teachers, onSubmit, onClose, loading, error }: {
+function AllocateDialog({ form, update, locations, teachers, sets, onSubmit, onClose, loading, error }: {
   form: AllocForm
   update: <K extends keyof AllocForm>(k: K, v: AllocForm[K]) => void
   locations: Location[]
   teachers: Teacher[]
+  sets: AssetSet[]
   onSubmit: (e: React.FormEvent) => void
   onClose: () => void
   loading: boolean
@@ -270,7 +288,18 @@ function AllocateDialog({ form, update, locations, teachers, onSubmit, onClose, 
         {/* Who to allocate to */}
         <div>
           <label className="label mb-2">Allocate to</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            {sets.length > 0 && (
+              <button type="button"
+                onClick={() => update('target', 'set')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+                  form.target === 'set' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <span className="text-xl">📦</span>
+                Class Set
+              </button>
+            )}
             {teachers.length > 0 && (
               <button type="button"
                 onClick={() => update('target', 'teacher')}
@@ -302,6 +331,26 @@ function AllocateDialog({ form, update, locations, teachers, onSubmit, onClose, 
             </button>
           </div>
         </div>
+
+        {/* Class Set picker */}
+        {form.target === 'set' && (
+          <div>
+            <label className="label">Class Set *</label>
+            <select className="input" value={form.set_id} onChange={e => update('set_id', e.target.value)} required>
+              <option value="">— Select class set —</option>
+              {sets.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.name}{s.responsible_teacher ? ` — ${s.responsible_teacher}` : ''}
+                </option>
+              ))}
+            </select>
+            {form.set_id && sets.find(s => String(s.id) === form.set_id)?.responsible_teacher && (
+              <p className="text-xs text-gray-400 mt-1">
+                Will be allocated to {sets.find(s => String(s.id) === form.set_id)?.responsible_teacher}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Teacher picker */}
         {form.target === 'teacher' && (
@@ -346,8 +395,8 @@ function AllocateDialog({ form, update, locations, teachers, onSubmit, onClose, 
           </div>
         )}
 
-        {/* Location (for teacher / custom) */}
-        {form.target !== 'classroom' && (
+        {/* Location (for teacher / custom only — set uses set's location, classroom is its own location) */}
+        {(form.target === 'teacher' || form.target === 'custom') && (
           <div>
             <label className="label">Location</label>
             <select className="input" value={form.location_id} onChange={e => update('location_id', e.target.value)}>
