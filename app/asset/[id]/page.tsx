@@ -213,6 +213,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
             allocationId={alloc?.id ?? null}
             locations={locations}
             teachers={teachers}
+            sets={sets}
             mode="request"
           />
         </div>
