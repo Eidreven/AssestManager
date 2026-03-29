@@ -137,8 +137,8 @@ async function initSchema() {
   )`)
 }
 
-// Run schema init silently — errors are non-fatal (tables may already exist)
-initSchema().catch(err => console.error('Schema init error:', err))
+// Store promise so db methods can await it — ensures migration runs before queries
+const schemaReady = initSchema().catch(err => console.error('Schema init error:', err))
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -367,6 +367,7 @@ export const db = {
 
   // Assets
   async getAllAssets(): Promise<AssetWithDetails[]> {
+    await schemaReady
     const r = await sql(`
       SELECT a.*, l.name AS location_name, s.name AS set_name
       FROM assets a
@@ -382,6 +383,7 @@ export const db = {
   },
 
   async getAssetById(id: number): Promise<AssetWithDetails | undefined> {
+    await schemaReady
     const r = await sql(`
       SELECT a.*, l.name AS location_name, s.name AS set_name
       FROM assets a
@@ -395,6 +397,7 @@ export const db = {
   },
 
   async getAssetByTag(tag: string): Promise<AssetWithDetails | undefined> {
+    await schemaReady
     const r = await sql(`
       SELECT a.*, l.name AS location_name, s.name AS set_name
       FROM assets a
