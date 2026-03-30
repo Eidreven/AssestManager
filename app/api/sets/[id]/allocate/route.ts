@@ -20,6 +20,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'Select a person or location to allocate to' }, { status: 400 })
   }
 
+  // Resolve location name for use as allocated_to when no teacher
+  let locationName: string | null = null
+  if (!teacher && locationId) {
+    const locs = await db.getAllLocations()
+    locationName = locs.find(l => l.id === locationId)?.name ?? null
+  }
+
   const assets = await db.getAssetsInSet(setId)
 
   await Promise.all(assets.map(async asset => {
@@ -28,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     await db.createAllocation({
       asset_id: asset.id,
-      allocated_to: teacher ?? 'Class Set',
+      allocated_to: teacher ?? locationName ?? set.name,
       allocated_to_role: teacher ? 'Teacher' : 'Location',
       allocated_by_id: auth.userId,
       location_id: locationId ?? undefined,

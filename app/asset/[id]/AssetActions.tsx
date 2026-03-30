@@ -88,9 +88,14 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
     if (allocForm.target === 'set') {
       const s = sets.find(s => String(s.id) === allocForm.set_id)
       if (!s) { setError('Please select a class set.'); setLoading(false); return }
-      if (!s.responsible_teacher) { setError('This set has no responsible teacher assigned. Edit the set first.'); setLoading(false); return }
-      allocated_to = s.responsible_teacher
-      allocated_to_role = 'Teacher'
+      if (!s.responsible_teacher && !s.location_id) {
+        setError('This set has no responsible person or location assigned. Edit the set first.')
+        setLoading(false); return
+      }
+      // Use teacher name if set, otherwise fall back to location name
+      const loc = s.location_id ? locations.find(l => l.id === s.location_id) : null
+      allocated_to = s.responsible_teacher ?? loc?.name ?? 'Class Set'
+      allocated_to_role = s.responsible_teacher ? 'Teacher' : 'Location'
       location_id = s.location_id ?? undefined
       set_id = s.id
     } else if (allocForm.target === 'teacher') {
@@ -344,11 +349,14 @@ function AllocateDialog({ form, update, locations, teachers, sets, onSubmit, onC
                 </option>
               ))}
             </select>
-            {form.set_id && sets.find(s => String(s.id) === form.set_id)?.responsible_teacher && (
-              <p className="text-xs text-gray-400 mt-1">
-                Will be allocated to {sets.find(s => String(s.id) === form.set_id)?.responsible_teacher}
-              </p>
-            )}
+            {form.set_id && (() => {
+              const s = sets.find(s => String(s.id) === form.set_id)
+              const label = s?.responsible_teacher
+                ?? (s?.location_id ? locations.find(l => l.id === s.location_id)?.name : null)
+              return label ? (
+                <p className="text-xs text-gray-400 mt-1">Will be allocated to {label}</p>
+              ) : null
+            })()}
           </div>
         )}
 
