@@ -4,8 +4,12 @@ import { db } from '@/lib/db'
 import AppShell from '@/components/AppShell'
 import { notFound } from 'next/navigation'
 import SetDetailClient from './SetDetailClient'
+import { getAuthFromCookies } from '@/lib/auth'
 
 export default async function SetDetailPage({ params }: { params: { id: string } }) {
+  const auth = getAuthFromCookies()
+  const isAdmin = auth?.role === 'admin'
+
   const setId = Number(params.id)
   const [set, setAssets, allAssets, locations, teachers] = await Promise.all([
     db.getSetById(setId),
@@ -24,6 +28,7 @@ export default async function SetDetailPage({ params }: { params: { id: string }
     <AppShell>
       <SetDetailClient
         set={set}
+        isAdmin={isAdmin}
         setAssets={setAssets.map(a => ({
           id: a.id,
           asset_tag: a.asset_tag,

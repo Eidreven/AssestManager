@@ -38,9 +38,10 @@ interface Props {
   unassigned: UnassignedAsset[]
   locations: Location[]
   teachers: string[]
+  isAdmin: boolean
 }
 
-export default function SetDetailClient({ set, setAssets, unassigned, locations, teachers }: Props) {
+export default function SetDetailClient({ set, setAssets, unassigned, locations, teachers, isAdmin }: Props) {
   const router = useRouter()
 
   const [assets, setAssets2] = useState(setAssets)
@@ -185,16 +186,18 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
             <span>📱 {assets.length} device{assets.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
-        <button onClick={() => setEditing(!editing)} className="btn-secondary text-sm">
-          {editing ? 'Cancel' : 'Edit Set Info'}
-        </button>
+        {isAdmin && (
+          <button onClick={() => setEditing(!editing)} className="btn-secondary text-sm">
+            {editing ? 'Cancel' : 'Edit Set Info'}
+          </button>
+        )}
       </div>
 
       {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
       {success && <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{success}</div>}
 
-      {/* Edit form */}
-      {editing && (
+      {/* Edit form — admin only */}
+      {isAdmin && editing && (
         <div className="card p-5">
           <h2 className="font-semibold text-gray-900 mb-4">Edit Set</h2>
           <form onSubmit={saveEdit} className="grid sm:grid-cols-2 gap-4">
@@ -229,8 +232,8 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
         </div>
       )}
 
-      {/* Allocate / Return all */}
-      <div className="card p-5 space-y-4">
+      {/* Allocate / Return all — admin only */}
+      {isAdmin && <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900">Bulk Allocation</h2>
         <div className="flex flex-wrap gap-2 text-sm">
           <span className="badge bg-green-100 text-green-700">{availableCount} available</span>
@@ -259,7 +262,7 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
             {returnLoading ? 'Returning…' : `Return All (${allocatedCount})`}
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Devices in set */}
       <div className="card p-5 space-y-4">
@@ -267,8 +270,8 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
           <h2 className="font-semibold text-gray-900">Devices in this Set</h2>
         </div>
 
-        {/* Add device */}
-        {available.length > 0 && (
+        {/* Add device — admin only */}
+        {isAdmin && available.length > 0 && (
           <form onSubmit={addDevice} className="flex gap-2">
             <select className="input flex-1" value={addId} onChange={e => setAddId(e.target.value)} required>
               <option value="">— Add a device to this set —</option>
@@ -317,10 +320,12 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
                     </td>
                     <td className="px-4 py-2 text-gray-500">{a.allocated_to ?? '—'}</td>
                     <td className="px-4 py-2">
-                      <button onClick={() => removeDevice(a.id, a.asset_tag)}
-                        className="text-red-400 hover:text-red-600 text-xs font-medium">
-                        Remove
-                      </button>
+                      {isAdmin && (
+                        <button onClick={() => removeDevice(a.id, a.asset_tag)}
+                          className="text-red-400 hover:text-red-600 text-xs font-medium">
+                          Remove
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

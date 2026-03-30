@@ -20,9 +20,10 @@ interface Props {
   initialSets: AssetSet[]
   locations: Location[]
   teachers: string[]
+  isAdmin: boolean
 }
 
-export default function SetsClient({ initialSets, locations, teachers }: Props) {
+export default function SetsClient({ initialSets, locations, teachers, isAdmin }: Props) {
   const router = useRouter()
   const [sets, setSets] = useState(initialSets)
   const [showForm, setShowForm] = useState(false)
@@ -76,16 +77,18 @@ export default function SetsClient({ initialSets, locations, teachers }: Props) 
           <h1 className="text-2xl font-bold text-gray-900">Class Sets</h1>
           <p className="text-sm text-gray-500 mt-0.5">Group devices into classroom sets and allocate them all at once.</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Set
-        </button>
+        {isAdmin && (
+          <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Set
+          </button>
+        )}
       </div>
 
-      {/* Create form */}
-      {showForm && (
+      {/* Create form — admin only */}
+      {isAdmin && showForm && (
         <div className="card p-6">
           <h2 className="font-semibold text-gray-900 mb-4">Create New Set</h2>
           {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
@@ -160,12 +163,14 @@ export default function SetsClient({ initialSets, locations, teachers }: Props) 
 
               <div className="flex gap-2 mt-auto pt-2 border-t border-gray-100">
                 <Link href={`/sets/${set.id}`} className="flex-1 text-center btn-primary text-sm py-1.5">
-                  Manage
+                  View
                 </Link>
-                <button onClick={() => deleteSet(set.id, set.name)}
-                  className="px-3 py-1.5 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
-                  Delete
-                </button>
+                {isAdmin && (
+                  <button onClick={() => deleteSet(set.id, set.name)}
+                    className="px-3 py-1.5 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}
