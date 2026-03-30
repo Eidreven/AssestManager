@@ -41,7 +41,7 @@ const TYPE_STYLES: Record<string, { badge: string; label: string }> = {
 
 const STATUS_TABS = ['all', 'pending', 'approved', 'rejected', 'completed']
 
-export default function RequestsPage() {
+export default function RequestsPage({ canManage = false }: { canManage?: boolean }) {
   const [requests, setRequests] = useState<Request[]>([])
   const [tab, setTab] = useState<string>('pending')
   const [loading, setLoading] = useState(true)
@@ -157,8 +157,8 @@ export default function RequestsPage() {
                     )}
                   </div>
 
-                  {/* Actions */}
-                  {r.status === 'pending' && (
+                  {/* Actions — admin/superadmin only */}
+                  {canManage && r.status === 'pending' && (
                     <div className="flex flex-col gap-2 min-w-48">
                       <textarea
                         placeholder="Optional note…"

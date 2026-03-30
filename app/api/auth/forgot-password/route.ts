@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
     const user = await db.getUserByEmail(email.toLowerCase().trim())
 
     // Always return success to prevent email enumeration
-    if (!user || user.role !== 'admin') {
+    // Allow password reset for all account types (admin, superadmin, teacher)
+    if (!user) {
       return NextResponse.json({ ok: true })
     }
 
