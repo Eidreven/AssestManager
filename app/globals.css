@@ -82,8 +82,22 @@
   .dark .light-mode-island .text-green-700 { color: rgb(21 128 61) !important; }
   .dark .light-mode-island .border-green-200 { border-color: rgb(187 247 208) !important; }
   .dark .light-mode-island .bg-red-50     { background-color: rgb(254 242 242) !important; }
+  .dark .light-mode-island .bg-red-100    { background-color: rgb(254 226 226) !important; }
   .dark .light-mode-island .text-red-700  { color: rgb(185 28 28) !important; }
   .dark .light-mode-island .border-red-200 { border-color: rgb(254 202 202) !important; }
+  .dark .light-mode-island .border-red-300 { border-color: rgb(252 165 165) !important; }
+  .dark .light-mode-island .border-red-500 { border-color: rgb(239 68 68) !important; }
+  .dark .light-mode-island .bg-amber-50   { background-color: rgb(255 251 235) !important; }
+  .dark .light-mode-island .bg-amber-100  { background-color: rgb(254 243 199) !important; }
+  .dark .light-mode-island .text-amber-700 { color: rgb(180 83 9) !important; }
+  .dark .light-mode-island .border-amber-300 { border-color: rgb(252 211 77) !important; }
+  .dark .light-mode-island .border-amber-500 { border-color: rgb(245 158 11) !important; }
+  .dark .light-mode-island .bg-purple-50  { background-color: rgb(250 245 255) !important; }
+  .dark .light-mode-island .bg-purple-100 { background-color: rgb(243 232 255) !important; }
+  .dark .light-mode-island .border-purple-300 { border-color: rgb(216 180 254) !important; }
+  .dark .light-mode-island .border-purple-500 { border-color: rgb(168 85 247) !important; }
+  .dark .light-mode-island .bg-blue-700   { background-color: rgb(29 78 216) !important; }
+  .dark .light-mode-island .bg-blue-800   { background-color: rgb(30 64 175) !important; }
   .dark .light-mode-island input,
   .dark .light-mode-island textarea,
   .dark .light-mode-island select {

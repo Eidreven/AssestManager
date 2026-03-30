@@ -12,23 +12,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const set = await db.getSetById(setId)
   if (!set) return NextResponse.json({ error: 'Set not found' }, { status: 404 })
 
-  const { responsible_teacher, notes } = await req.json()
-  const teacher = responsible_teacher?.trim() || set.responsible_teacher
-  if (!teacher) return NextResponse.json({ error: 'No responsible teacher set' }, { status: 400 })
+  const { responsible_teacher, location_id: bodyLocationId, notes } = await req.json()
+  const teacher = (responsible_teacher?.trim()) || set.responsible_teacher || null
+  const locationId: number | null = bodyLocationId ?? set.location_id ?? null
+
+  if (!teacher && !locationId) {
+    return NextResponse.json({ error: 'Select a person or location to allocate to' }, { status: 400 })
+  }
 
   const assets = await db.getAssetsInSet(setId)
 
   await Promise.all(assets.map(async asset => {
-    // Close existing allocation first
     if (asset.current_allocation) {
       await db.returnAllocation(asset.current_allocation.id, asset.id)
     }
     await db.createAllocation({
       asset_id: asset.id,
-      allocated_to: teacher,
-      allocated_to_role: 'Teacher',
+      allocated_to: teacher ?? 'Class Set',
+      allocated_to_role: teacher ? 'Teacher' : 'Location',
       allocated_by_id: auth.userId,
-      location_id: set.location_id ?? undefined,
+      location_id: locationId ?? undefined,
       purpose: `Class set: ${set.name}`,
       is_temporary: false,
       notes: notes || null,

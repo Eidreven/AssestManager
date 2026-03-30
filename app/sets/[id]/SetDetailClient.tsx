@@ -63,6 +63,7 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
 
   // Allocate/return all
   const [allocateTeacher, setAllocateTeacher] = useState(set.responsible_teacher ?? '')
+  const [allocateLocation, setAllocateLocation] = useState(set.location_id ? String(set.location_id) : '')
   const [allocateLoading, setAllocateLoading] = useState(false)
   const [returnLoading, setReturnLoading] = useState(false)
 
@@ -132,13 +133,17 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
   }
 
   async function allocateAll() {
-    if (!allocateTeacher) { flash('Select a teacher first.', true); return }
-    if (!confirm(`Allocate all ${assets.length} devices to ${allocateTeacher}?`)) return
+    if (!allocateTeacher && !allocateLocation) { flash('Select a person or location to allocate to.', true); return }
+    const target = allocateTeacher || locations.find(l => String(l.id) === allocateLocation)?.name || 'selected location'
+    if (!confirm(`Allocate all ${assets.length} devices to ${target}?`)) return
     setAllocateLoading(true)
     const res = await fetch(`/api/sets/${set.id}/allocate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ responsible_teacher: allocateTeacher }),
+      body: JSON.stringify({
+        responsible_teacher: allocateTeacher || null,
+        location_id: allocateLocation ? Number(allocateLocation) : null,
+      }),
     })
     const d = await res.json()
     if (res.ok) {
@@ -239,17 +244,26 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
           <span className="badge bg-green-100 text-green-700">{availableCount} available</span>
           <span className="badge bg-amber-100 text-amber-700">{allocatedCount} allocated</span>
         </div>
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="flex-1 min-w-48">
-            <label className="label">Allocate all to</label>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label className="label">Person (optional)</label>
             <select className="input" value={allocateTeacher} onChange={e => setAllocateTeacher(e.target.value)}>
-              <option value="">— Select person —</option>
+              <option value="">— None —</option>
               {users.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
+          <div>
+            <label className="label">Location (optional)</label>
+            <select className="input" value={allocateLocation} onChange={e => setAllocateLocation(e.target.value)}>
+              <option value="">— None —</option>
+              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={allocateAll}
-            disabled={allocateLoading || assets.length === 0 || !allocateTeacher}
+            disabled={allocateLoading || assets.length === 0 || (!allocateTeacher && !allocateLocation)}
             className="btn-primary"
           >
             {allocateLoading ? 'Allocating…' : `Allocate All (${assets.length})`}
