@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db'
 
 export async function GET(req: NextRequest) {
   const token = getAuthFromRequest(req)
-  if (!token || token.role !== 'admin') {
+  if (!token || (token.role !== 'admin' && token.role !== 'superadmin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 })
   }
 
@@ -43,8 +43,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const token = getAuthFromRequest(req)
-  if (!token || token.role !== 'admin') {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+  if (!token || token.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Super Admin only' }, { status: 403 })
   }
 
   const formData = await req.formData()

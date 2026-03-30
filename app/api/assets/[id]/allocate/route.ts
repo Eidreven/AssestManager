@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthFromCookies } from '@/lib/auth'
+import { getAuthFromCookies, isAdmin } from '@/lib/auth'
 import { sendAllocationNotification, sendReturnNotification } from '@/lib/email'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (auth.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isAdmin(auth)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const assetId = Number(params.id)
   const asset = await db.getAssetById(assetId)
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (auth.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isAdmin(auth)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const assetId = Number(params.id)
   const asset = await db.getAssetById(assetId)

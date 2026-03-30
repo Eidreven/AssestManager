@@ -71,7 +71,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
                   {asset.status}
                 </span>
                 {/* QR buttons (admin only) */}
-                {auth.role === 'admin' && (
+                {(auth.role === 'admin' || auth.role === 'superadmin') && (
                   <div className="flex gap-2">
                     <a
                       href={`/api/assets/${asset.id}/qr`}
@@ -147,7 +147,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
                 <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
                 Currently Allocated
               </h2>
-              {auth.role === 'admin' && (
+              {(auth.role === 'admin' || auth.role === 'superadmin') && (
                 <AssetActions
                   assetId={asset.id}
                   assetStatus={asset.status}
@@ -186,7 +186,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
                 <span className="font-semibold text-gray-900">Not Currently Allocated</span>
               </div>
-              {auth.role === 'admin' && (
+              {(auth.role === 'admin' || auth.role === 'superadmin') && (
                 <AssetActions
                   assetId={asset.id}
                   assetStatus={asset.status}
@@ -241,7 +241,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
         <AssetHistory history={history} assetId={asset.id} />
 
         {/* Admin edit link */}
-        {auth.role === 'admin' && (
+        {(auth.role === 'admin' || auth.role === 'superadmin') && (
           <div className="flex justify-end gap-3">
             <Link href={`/assets/${asset.id}/edit`} className="btn-secondary">
               Edit Asset Details

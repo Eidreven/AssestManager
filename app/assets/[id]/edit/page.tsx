@@ -14,6 +14,9 @@ interface Asset {
 const ASSET_TYPES = ['iPad', 'Laptop', 'Chromebook', 'Desktop', 'Printer', 'Projector', 'Camera', 'Monitor', 'Tablet', 'Other']
 const STATUSES = ['available', 'allocated', 'maintenance', 'retired']
 
+function tagPrefix(type: string) { return type.substring(0, 3).toUpperCase() }
+function tagMatchesType(tag: string, type: string) { return tag.startsWith(`MPS-${tagPrefix(type)}-`) }
+
 export default function EditAssetPage() {
   const router = useRouter()
   const params = useParams()
@@ -22,9 +25,11 @@ export default function EditAssetPage() {
   const [asset, setAsset] = useState<Asset | null>(null)
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(false)
+  const [tagLoading, setTagLoading] = useState(false)
+  const [tagChanged, setTagChanged] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({
-    name: '', type: 'iPad', model: '', serial_number: '',
+    asset_tag: '', name: '', type: 'iPad', model: '', serial_number: '',
     location_id: '', status: 'available', notes: '', purchase_date: '', warranty_expiry: '',
   })
 
@@ -36,6 +41,7 @@ export default function EditAssetPage() {
       setAsset(a)
       setLocations(locs)
       setForm({
+        asset_tag: a.asset_tag ?? '',
         name: a.name ?? '',
         type: a.type ?? 'iPad',
         model: a.model ?? '',
@@ -48,6 +54,25 @@ export default function EditAssetPage() {
       })
     })
   }, [id])
+
+  async function handleTypeChange(newType: string) {
+    const oldType = form.type
+    setForm(f => ({ ...f, type: newType }))
+
+    // Auto-update tag if it was generated for the old type
+    if (tagMatchesType(form.asset_tag, oldType)) {
+      setTagLoading(true)
+      try {
+        const res = await fetch(`/api/assets/next-tag?type=${encodeURIComponent(newType)}`)
+        if (res.ok) {
+          const { tag } = await res.json()
+          setForm(f => ({ ...f, type: newType, asset_tag: tag }))
+          setTagChanged(true)
+        }
+      } catch {}
+      setTagLoading(false)
+    }
+  }
 
   function update(key: string, value: string) { setForm(f => ({ ...f, [key]: value })) }
 
@@ -94,13 +119,34 @@ export default function EditAssetPage() {
 
         <form onSubmit={handleSubmit} className="card p-6 space-y-5">
           <div className="grid sm:grid-cols-2 gap-4">
+            {/* Asset Tag — readonly, auto-updates with type */}
+            <div>
+              <label className="label">Asset Tag</label>
+              <div className="relative">
+                <input
+                  className="input font-mono pr-8"
+                  value={tagLoading ? 'Generating…' : form.asset_tag}
+                  onChange={e => { update('asset_tag', e.target.value); setTagChanged(false) }}
+                  readOnly={tagLoading}
+                />
+                {tagChanged && (
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-amber-600 font-medium">updated</span>
+                )}
+              </div>
+              {tagChanged && (
+                <p className="text-xs text-amber-600 mt-1">Tag updated to match new device type.</p>
+              )}
+            </div>
+
+            <div className="sm:col-span-2 sm:hidden" />
+
             <div className="sm:col-span-2">
               <label className="label">Device Name *</label>
               <input className="input" value={form.name} onChange={e => update('name', e.target.value)} required />
             </div>
             <div>
               <label className="label">Type *</label>
-              <select className="input" value={form.type} onChange={e => update('type', e.target.value)}>
+              <select className="input" value={form.type} onChange={e => handleTypeChange(e.target.value)}>
                 {ASSET_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
@@ -142,7 +188,7 @@ export default function EditAssetPage() {
             <button type="button" onClick={handleDelete} className="btn-danger">Delete Asset</button>
             <div className="flex gap-3">
               <Link href={`/asset/${id}`} className="btn-secondary">Cancel</Link>
-              <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Saving…' : 'Save Changes'}</button>
+              <button type="submit" className="btn-primary" disabled={loading || tagLoading}>{loading ? 'Saving…' : 'Save Changes'}</button>
             </div>
           </div>
         </form>

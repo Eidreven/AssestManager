@@ -107,7 +107,7 @@ export default function Navbar({ user }: NavbarProps) {
     router.refresh()
   }
 
-  const links = NAV_LINKS.filter(l => !l.adminOnly || user.role === 'admin')
+  const links = NAV_LINKS.filter(l => !l.adminOnly || user.role === 'admin' || user.role === 'superadmin')
 
   return (
     <>
@@ -153,7 +153,9 @@ export default function Navbar({ user }: NavbarProps) {
           <div className="px-3 py-2 mb-2">
             <p className="text-sm font-medium text-white truncate">{user.name}</p>
             <p className="text-xs text-blue-300 truncate">{user.email}</p>
-            <span className="mt-1 inline-block text-xs text-blue-400 capitalize">{user.role}</span>
+            <span className="mt-1 inline-block text-xs text-blue-400 capitalize">
+              {user.role === 'superadmin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'Teacher'}
+            </span>
           </div>
           <button onClick={toggle} className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-800 hover:text-white transition-colors">
             {theme === 'dark'

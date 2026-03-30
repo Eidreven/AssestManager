@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     userId: user.id,
     email: user.email,
     name: user.name,
-    role: user.role as 'admin' | 'staff',
+    role: user.role as 'superadmin' | 'admin' | 'teacher',
   })
 
   setAuthCookie(token)

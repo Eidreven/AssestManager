@@ -10,7 +10,7 @@ export interface TokenPayload {
   userId: number
   email: string
   name: string
-  role: 'admin' | 'staff' | 'teacher'
+  role: 'superadmin' | 'admin' | 'teacher'
 }
 
 export function signToken(payload: TokenPayload): string {
@@ -51,6 +51,17 @@ export function getAuthFromRequest(req: NextRequest): TokenPayload | null {
   return verifyToken(token)
 }
 
+/** True for both 'admin' and 'superadmin' */
+export function isAdmin(auth: TokenPayload | null): boolean {
+  return auth?.role === 'admin' || auth?.role === 'superadmin'
+}
+
+/** True only for 'superadmin' */
+export function isSuperAdmin(auth: TokenPayload | null): boolean {
+  return auth?.role === 'superadmin'
+}
+
+/** @deprecated use isAdmin() */
 export function requireAdmin(auth: TokenPayload | null): boolean {
-  return auth?.role === 'admin'
+  return isAdmin(auth)
 }

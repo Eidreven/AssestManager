@@ -55,7 +55,7 @@ export default async function AssetsPage({
             <h1 className="text-2xl font-bold text-gray-900">Assets</h1>
             <p className="text-gray-500 text-sm mt-0.5">{assets.length} device{assets.length !== 1 ? 's' : ''}</p>
           </div>
-          {auth.role === 'admin' && (
+          {(auth.role === 'admin' || auth.role === 'superadmin') && (
             <Link href="/assets/new" className="btn-primary">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -123,7 +123,7 @@ export default async function AssetsPage({
                   d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
               </svg>
               <p className="text-gray-500">No assets found</p>
-              {auth.role === 'admin' && !searchParams?.teacher && (
+              {(auth.role === 'admin' || auth.role === 'superadmin') && !searchParams?.teacher && (
                 <Link href="/assets/new" className="btn-primary mt-4 inline-flex">Register first asset</Link>
               )}
             </div>

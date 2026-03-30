@@ -5,7 +5,21 @@ import { useState, useEffect, FormEvent, useRef } from 'react'
 interface Location { id: number; name: string; description: string | null }
 interface User { id: number; name: string; email: string; role: string; created_at: string }
 
-export default function AdminPage() {
+interface Props { isSuperAdmin: boolean }
+
+function roleLabel(role: string) {
+  if (role === 'superadmin') return 'Super Admin'
+  if (role === 'admin') return 'Admin'
+  return 'Teacher'
+}
+
+function roleBadge(role: string) {
+  if (role === 'superadmin') return 'bg-purple-100 text-purple-700'
+  if (role === 'admin') return 'bg-blue-100 text-blue-700'
+  return 'bg-green-100 text-green-700'
+}
+
+export default function AdminPage({ isSuperAdmin }: Props) {
   const [locations, setLocations] = useState<Location[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [locForm, setLocForm] = useState({ name: '', description: '' })
@@ -180,7 +194,7 @@ export default function AdminPage() {
     const data = await res.json()
     if (res.ok) {
       setUsers(prev => [...prev, { id: data.id, name: userForm.name, email: userForm.email, role: userForm.role, created_at: new Date().toISOString() }])
-      setUserForm({ name: '', email: '', password: '', role: 'staff' })
+      setUserForm({ name: '', email: '', password: '', role: 'teacher' })
       setSuccess('User created.')
     } else {
       setError(data.error ?? 'Failed')
@@ -269,7 +283,11 @@ export default function AdminPage() {
         {/* Users */}
         <div className="card p-6 space-y-4">
           <h2 className="font-semibold text-gray-900 text-lg">User Accounts</h2>
-          <p className="text-sm text-gray-500">Create accounts for teachers, IT staff, and admins. Teachers appear in the allocation picker.</p>
+          <p className="text-sm text-gray-500">
+            {isSuperAdmin
+              ? 'Create and manage all user accounts including Admin and Super Admin.'
+              : 'Create Teacher accounts. Contact a Super Admin to add Admin accounts.'}
+          </p>
 
           <form onSubmit={addUser} className="grid sm:grid-cols-2 gap-3">
             <div>
@@ -288,8 +306,8 @@ export default function AdminPage() {
               <label className="label">Role</label>
               <select className="input" value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))}>
                 <option value="teacher">Teacher</option>
-                <option value="staff">Staff (IT/Admin support)</option>
-                <option value="admin">Admin</option>
+                {isSuperAdmin && <option value="admin">Admin</option>}
+                {isSuperAdmin && <option value="superadmin">Super Admin</option>}
               </select>
             </div>
             <div className="sm:col-span-2 flex justify-end">
@@ -312,95 +330,105 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {users.map(u => (
-                    <tr key={u.id}>
-                      {editingUser?.id === u.id ? (
-                        <>
-                          <td className="px-4 py-2">
-                            <input className="input py-1 text-sm" value={editingUser.name}
-                              onChange={e => setEditingUser(f => f ? { ...f, name: e.target.value } : f)} />
-                          </td>
-                          <td className="px-4 py-2">
-                            <input type="email" className="input py-1 text-sm" value={editingUser.email}
-                              onChange={e => setEditingUser(f => f ? { ...f, email: e.target.value } : f)} />
-                          </td>
-                          <td className="px-4 py-2">
-                            <select className="input py-1 text-sm" value={editingUser.role}
-                              onChange={e => setEditingUser(f => f ? { ...f, role: e.target.value } : f)}>
-                              <option value="teacher">Teacher</option>
-                              <option value="staff">Staff</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                          </td>
-                          <td className="px-4 py-2 text-gray-400 text-xs">—</td>
-                          <td className="px-4 py-2 flex gap-2">
-                            <button onClick={saveEditUser} disabled={userEditLoading} className="text-green-600 hover:text-green-800 text-xs font-medium">Save</button>
-                            <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-4 py-2 font-medium">{u.name}</td>
-                          <td className="px-4 py-2 text-gray-500">{u.email}</td>
-                          <td className="px-4 py-2">
-                            <span className={`badge ${
-                              u.role === 'admin' ? 'bg-blue-100 text-blue-700'
-                              : u.role === 'teacher' ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {u.role}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 text-gray-400 text-xs">
-                            {new Date(u.created_at).toLocaleDateString('en-GB')}
-                          </td>
-                          <td className="px-4 py-2 flex gap-3">
-                            <button onClick={() => setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role })} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
-                            <button onClick={() => deleteUser(u.id, u.name)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
+                  {users.map(u => {
+                    const canEdit = isSuperAdmin || u.role !== 'superadmin'
+                    return (
+                      <tr key={u.id}>
+                        {editingUser?.id === u.id ? (
+                          <>
+                            <td className="px-4 py-2">
+                              <input className="input py-1 text-sm" value={editingUser.name}
+                                onChange={e => setEditingUser(f => f ? { ...f, name: e.target.value } : f)} />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input type="email" className="input py-1 text-sm" value={editingUser.email}
+                                onChange={e => setEditingUser(f => f ? { ...f, email: e.target.value } : f)} />
+                            </td>
+                            <td className="px-4 py-2">
+                              <select className="input py-1 text-sm" value={editingUser.role}
+                                onChange={e => setEditingUser(f => f ? { ...f, role: e.target.value } : f)}>
+                                <option value="teacher">Teacher</option>
+                                {isSuperAdmin && <option value="admin">Admin</option>}
+                                {isSuperAdmin && <option value="superadmin">Super Admin</option>}
+                              </select>
+                            </td>
+                            <td className="px-4 py-2 text-gray-400 text-xs">—</td>
+                            <td className="px-4 py-2 flex gap-2">
+                              <button onClick={saveEditUser} disabled={userEditLoading} className="text-green-600 hover:text-green-800 text-xs font-medium">Save</button>
+                              <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-2 font-medium">{u.name}</td>
+                            <td className="px-4 py-2 text-gray-500">{u.email}</td>
+                            <td className="px-4 py-2">
+                              <span className={`badge ${roleBadge(u.role)}`}>
+                                {roleLabel(u.role)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-gray-400 text-xs">
+                              {new Date(u.created_at).toLocaleDateString('en-GB')}
+                            </td>
+                            <td className="px-4 py-2 flex gap-3">
+                              {canEdit && (
+                                <button onClick={() => setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role })} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                              )}
+                              {canEdit && (
+                                <button onClick={() => deleteUser(u.id, u.name)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
+                              )}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
-        {/* Danger Zone */}
-        <div className="card p-6 space-y-4 border-red-200">
-          <h2 className="font-semibold text-red-700 text-lg">Danger Zone</h2>
-          <p className="text-sm text-gray-500">Permanently delete all assets, locations, allocations and requests. Your user accounts will be kept.</p>
-          <button
-            onClick={async () => {
-              if (!confirm('DELETE ALL DATA?\n\nThis will permanently remove all assets, locations, allocations and requests.\n\nYour user accounts will be kept.\n\nThis cannot be undone.')) return
-              if (!confirm('Are you absolutely sure? Type OK to confirm.\n\nAll asset data will be gone forever.')) return
-              setClearLoading(true); setError(''); setSuccess('')
-              try {
-                const res = await fetch('/api/admin/clear', { method: 'DELETE' })
-                if (res.ok) {
-                  setSuccess('All data cleared. You can now start adding real assets.')
-                } else {
-                  const d = await res.json()
-                  setError(d.error ?? 'Failed to clear data')
+
+        {/* Danger Zone — Super Admin only */}
+        {isSuperAdmin && (
+          <div className="card p-6 space-y-4 border-red-200">
+            <h2 className="font-semibold text-red-700 text-lg">Danger Zone</h2>
+            <p className="text-sm text-gray-500">Permanently delete all assets, locations, allocations and requests. Your user accounts will be kept.</p>
+            <button
+              onClick={async () => {
+                if (!confirm('DELETE ALL DATA?\n\nThis will permanently remove all assets, locations, allocations and requests.\n\nYour user accounts will be kept.\n\nThis cannot be undone.')) return
+                if (!confirm('Are you absolutely sure? Type OK to confirm.\n\nAll asset data will be gone forever.')) return
+                setClearLoading(true); setError(''); setSuccess('')
+                try {
+                  const res = await fetch('/api/admin/clear', { method: 'DELETE' })
+                  if (res.ok) {
+                    setSuccess('All data cleared. You can now start adding real assets.')
+                  } else {
+                    const d = await res.json()
+                    setError(d.error ?? 'Failed to clear data')
+                  }
+                } catch {
+                  setError('Failed to clear data')
+                } finally {
+                  setClearLoading(false)
                 }
-              } catch {
-                setError('Failed to clear data')
-              } finally {
-                setClearLoading(false)
-              }
-            }}
-            disabled={clearLoading}
-            className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
-          >
-            {clearLoading ? 'Clearing…' : 'Clear All Data'}
-          </button>
-        </div>
+              }}
+              disabled={clearLoading}
+              className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+            >
+              {clearLoading ? 'Clearing…' : 'Clear All Data'}
+            </button>
+          </div>
+        )}
 
         {/* Database Backup & Restore */}
         <div className="card p-6 space-y-4">
           <h2 className="font-semibold text-gray-900 text-lg">Database Backup & Restore</h2>
-          <p className="text-sm text-gray-500">Download a JSON backup of all data or restore from a previous JSON backup file.</p>
+          <p className="text-sm text-gray-500">
+            {isSuperAdmin
+              ? 'Download a JSON backup of all data or restore from a previous JSON backup file.'
+              : 'Download a JSON backup of all data.'}
+          </p>
 
           <div className="flex flex-wrap gap-3">
             <button
@@ -415,20 +443,22 @@ export default function AdminPage() {
               {backupLoading ? 'Downloading…' : 'Download Backup'}
             </button>
 
-            <label className={`btn-secondary flex items-center gap-2 cursor-pointer ${restoreLoading ? 'opacity-50 pointer-events-none' : ''}`}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
-              </svg>
-              {restoreLoading ? 'Restoring…' : 'Restore from Backup'}
-              <input
-                ref={restoreInputRef}
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={handleRestore}
-              />
-            </label>
+            {isSuperAdmin && (
+              <label className={`btn-secondary flex items-center gap-2 cursor-pointer ${restoreLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
+                </svg>
+                {restoreLoading ? 'Restoring…' : 'Restore from Backup'}
+                <input
+                  ref={restoreInputRef}
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={handleRestore}
+                />
+              </label>
+            )}
           </div>
 
           <div className="border-t border-gray-100 pt-4 flex items-center justify-between flex-wrap gap-3">
@@ -449,9 +479,11 @@ export default function AdminPage() {
             </button>
           </div>
 
-          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-            Warning: Restoring from a backup will replace all current data. Make sure to download a backup first.
-          </p>
+          {isSuperAdmin && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              Warning: Restoring from a backup will replace all current data. Make sure to download a backup first.
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { getAuthFromRequest } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   const token = getAuthFromRequest(req)
-  if (!token || token.role !== 'admin') {
+  if (!token || (token.role !== 'admin' && token.role !== 'superadmin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 })
   }
 

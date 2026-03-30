@@ -10,13 +10,22 @@ interface AssetRow {
   type: string
   model: string | null
   status: string
+  set_id: number | null
   allocated_to: string | null
   allocated_to_role: string | null
+}
+
+interface AssetSet {
+  id: number
+  name: string
+  responsible_teacher: string | null
+  asset_count: number
 }
 
 interface Props {
   assets: AssetRow[]
   teachers: string[]
+  sets: AssetSet[]
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -25,7 +34,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out
 }
 
-export default function BulkQrClient({ assets, teachers }: Props) {
+export default function BulkQrClient({ assets, teachers, sets }: Props) {
   const [typeFilter, setTypeFilter] = useState('all')
   const [allocationFilter, setAllocationFilter] = useState('all')
   const [qrUrls, setQrUrls] = useState<Record<number, string>>({})
@@ -37,6 +46,7 @@ export default function BulkQrClient({ assets, teachers }: Props) {
     if (typeFilter !== 'all' && a.type !== typeFilter) return false
     if (allocationFilter === 'available') return a.status === 'available'
     if (allocationFilter.startsWith('teacher:')) return a.allocated_to === allocationFilter.slice(8)
+    if (allocationFilter.startsWith('set:')) return String(a.set_id) === allocationFilter.slice(4)
     return true
   })
 
@@ -74,11 +84,11 @@ export default function BulkQrClient({ assets, teachers }: Props) {
         /* ── Screen styles ── */
         .a4-page {
           width: 210mm;
-          background: white;
+          background: white !important;
+          color: black !important;
           box-shadow: 0 2px 8px rgba(0,0,0,0.12);
           margin: 0 auto 24px auto;
           box-sizing: border-box;
-          /* A4: 210 x 297mm — vertical margins ~9.5mm, horizontal ~5.9mm */
           padding: 9.5mm 5.9mm;
           display: grid;
           grid-template-columns: repeat(2, 99.1mm);
@@ -92,7 +102,7 @@ export default function BulkQrClient({ assets, teachers }: Props) {
           grid-template-columns: repeat(3, 1fr);
           grid-template-rows: repeat(3, 1fr);
           box-sizing: border-box;
-          border: 0.5px dashed #cbd5e1; /* guide line — remove if not wanted */
+          border: 0.5px dashed #cbd5e1;
           overflow: hidden;
         }
         .qr-cell {
@@ -103,6 +113,7 @@ export default function BulkQrClient({ assets, teachers }: Props) {
           box-sizing: border-box;
           padding: 1.5mm;
           overflow: hidden;
+          background: white !important;
         }
         .qr-cell img {
           width: 24mm;
@@ -114,14 +125,14 @@ export default function BulkQrClient({ assets, teachers }: Props) {
           font-size: 5.5pt;
           font-weight: 700;
           font-family: ui-monospace, monospace;
-          color: #1e3a8a;
+          color: #1e3a8a !important;
           text-align: center;
           margin-top: 1mm;
           line-height: 1.2;
         }
         .qr-name {
           font-size: 4.5pt;
-          color: #64748b;
+          color: #64748b !important;
           text-align: center;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -133,26 +144,35 @@ export default function BulkQrClient({ assets, teachers }: Props) {
         /* ── Print styles ── */
         @media print {
           .no-print { display: none !important; }
-          body { margin: 0; padding: 0; background: white; }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            color: black !important;
+            color-scheme: light !important;
+          }
           @page {
             size: A4 portrait;
             margin: 9.5mm 5.9mm;
           }
           .a4-page {
-            width: 198.2mm; /* 210 - 2×5.9mm margins handled by @page */
+            width: 198.2mm;
             padding: 0;
             margin: 0;
             box-shadow: none;
             page-break-after: always;
             break-after: page;
+            background: white !important;
           }
           .a4-page:last-child {
             page-break-after: avoid;
             break-after: avoid;
           }
           .sticker {
-            border: none; /* remove guide lines when printing */
+            border: none;
           }
+          .qr-tag { color: #1e3a8a !important; }
+          .qr-name { color: #64748b !important; }
           * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -168,7 +188,7 @@ export default function BulkQrClient({ assets, teachers }: Props) {
             <p className="text-sm text-gray-500 mt-0.5">
               {generating
                 ? 'Generating…'
-                : `${filtered.length} QR codes · ${totalStickers} sticker${totalStickers !== 1 ? 's' : ''} · ${totalPages} A4 page${totalPages !== 1 ? 's' : ''} · 4 stickers/page · 9 QR/sticker`}
+                : `${filtered.length} QR codes · ${totalStickers} sticker${totalStickers !== 1 ? 's' : ''} · ${totalPages} A4 page${totalPages !== 1 ? 's' : ''}`}
             </p>
           </div>
           <button
@@ -197,9 +217,20 @@ export default function BulkQrClient({ assets, teachers }: Props) {
             <select className="input" value={allocationFilter} onChange={e => setAllocationFilter(e.target.value)}>
               <option value="all">All Assets</option>
               <option value="available">Available Only</option>
-              <optgroup label="Allocated to Teacher">
-                {teachers.map(t => <option key={t} value={`teacher:${t}`}>{t}</option>)}
-              </optgroup>
+              {sets.length > 0 && (
+                <optgroup label="Class Set">
+                  {sets.map(s => (
+                    <option key={s.id} value={`set:${s.id}`}>
+                      {s.name}{s.responsible_teacher ? ` — ${s.responsible_teacher}` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {teachers.length > 0 && (
+                <optgroup label="Allocated to Teacher">
+                  {teachers.map(t => <option key={t} value={`teacher:${t}`}>{t}</option>)}
+                </optgroup>
+              )}
             </select>
           </div>
           {(typeFilter !== 'all' || allocationFilter !== 'all') && (
@@ -233,7 +264,6 @@ export default function BulkQrClient({ assets, teachers }: Props) {
       ) : (
         pages.map((pageStickers, pi) => (
           <div key={pi} className="a4-page">
-            {/* Always render 4 sticker slots so the grid stays 2×2 */}
             {Array.from({ length: 4 }).map((_, si) => {
               const sticker = pageStickers[si]
               if (!sticker) return <div key={si} className="sticker" />

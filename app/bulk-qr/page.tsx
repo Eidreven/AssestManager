@@ -2,16 +2,19 @@ export const dynamic = 'force-dynamic'
 
 import { db } from '@/lib/db'
 import AppShell from '@/components/AppShell'
-import { getAuthFromCookies } from '@/lib/auth'
+import { getAuthFromCookies, isAdmin } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import BulkQrClient from './BulkQrClient'
 
 export default async function BulkQrPage() {
   const auth = getAuthFromCookies()
-  if (!auth || auth.role !== 'admin') redirect('/dashboard')
+  if (!auth || !isAdmin(auth)) redirect('/dashboard')
 
-  const assets = await db.getAllAssets()
-  const teachers = await db.getTeachers()
+  const [assets, teachers, sets] = await Promise.all([
+    db.getAllAssets(),
+    db.getTeachers(),
+    db.getAllSets(),
+  ])
 
   const assetData = assets.map(a => ({
     id: a.id,
@@ -20,13 +23,18 @@ export default async function BulkQrPage() {
     type: a.type,
     model: a.model,
     status: a.status,
+    set_id: a.set_id ?? null,
     allocated_to: a.current_allocation?.allocated_to ?? null,
     allocated_to_role: a.current_allocation?.allocated_to_role ?? null,
   }))
 
   return (
     <AppShell>
-      <BulkQrClient assets={assetData} teachers={teachers.map(t => t.name)} />
+      <BulkQrClient
+        assets={assetData}
+        teachers={teachers.map(t => t.name)}
+        sets={sets}
+      />
     </AppShell>
   )
 }

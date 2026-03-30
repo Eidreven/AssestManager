@@ -13,7 +13,7 @@ export default async function ScanPage({ params }: { params: { id: string } }) {
   const loggedInUser = auth ? { name: auth.name, email: auth.email } : null
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-start p-4 pb-12" style={{ paddingTop: '1.5rem' }}>
+    <div className="light-mode-island min-h-screen bg-gray-100 flex flex-col items-center justify-start p-4 pb-12" style={{ paddingTop: '1.5rem' }}>
       <div className="w-full max-w-md space-y-4">
         {/* Header */}
         <div className="text-center space-y-1">

@@ -58,7 +58,7 @@ async function initSchema() {
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'staff',
+    role TEXT NOT NULL DEFAULT 'admin',
     created_at TEXT DEFAULT (datetime('now'))
   )`)
   await sql(`CREATE TABLE IF NOT EXISTS locations (
@@ -127,6 +127,9 @@ async function initSchema() {
     created_at TEXT DEFAULT (datetime('now'))
   )`)
   try { await sql(`ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`) } catch {}
+  // Migrate old role names: admin→superadmin, staff→admin
+  try { await sql(`UPDATE users SET role = 'superadmin' WHERE role = 'admin'`) } catch {}
+  try { await sql(`UPDATE users SET role = 'admin' WHERE role = 'staff'`) } catch {}
   await sql(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -147,7 +150,7 @@ export interface User {
   name: string
   email: string
   password_hash: string
-  role: 'admin' | 'staff' | 'teacher'
+  role: 'superadmin' | 'admin' | 'teacher'
   created_at: string
 }
 
