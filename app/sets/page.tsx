@@ -3,11 +3,11 @@ export const dynamic = 'force-dynamic'
 import { db } from '@/lib/db'
 import AppShell from '@/components/AppShell'
 import SetsClient from './SetsClient'
-import { getAuthFromCookies } from '@/lib/auth'
+import { getAuthFromCookies, isAdmin } from '@/lib/auth'
 
 export default async function SetsPage() {
   const auth = getAuthFromCookies()
-  const isAdmin = auth?.role === 'admin'
+  const isAdminUser = isAdmin(auth)
 
   const [sets, locations, teachers] = await Promise.all([
     db.getAllSets(),
@@ -21,7 +21,7 @@ export default async function SetsPage() {
         initialSets={sets}
         locations={locations}
         teachers={teachers.map(t => t.name)}
-        isAdmin={isAdmin}
+        isAdmin={isAdminUser}
       />
     </AppShell>
   )
