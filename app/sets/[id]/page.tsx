@@ -11,12 +11,12 @@ export default async function SetDetailPage({ params }: { params: { id: string }
   const isAdminUser = isAdmin(auth)
 
   const setId = Number(params.id)
-  const [set, setAssets, allAssets, locations, teachers] = await Promise.all([
+  const [set, setAssets, allAssets, locations, users] = await Promise.all([
     db.getSetById(setId),
     db.getAssetsInSet(setId),
     db.getAllAssets(),
     db.getAllLocations(),
-    db.getTeachers(),
+    db.getAllUsers(),
   ])
 
   if (!set) notFound()
@@ -39,7 +39,7 @@ export default async function SetDetailPage({ params }: { params: { id: string }
         }))}
         unassigned={unassigned.map(a => ({ id: a.id, asset_tag: a.asset_tag, name: a.name, type: a.type }))}
         locations={locations}
-        teachers={teachers.map(t => t.name)}
+        users={users.map(u => u.name)}
       />
     </AppShell>
   )

@@ -45,13 +45,23 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<Request[]>([])
   const [tab, setTab] = useState<string>('pending')
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [handlerNotes, setHandlerNotes] = useState<Record<number, string>>({})
 
   useEffect(() => {
-    fetch('/api/requests')
-      .then(r => r.json())
-      .then(data => { setRequests(data); setLoading(false) })
+    ;(async () => {
+      try {
+        const res = await fetch('/api/requests')
+        if (!res.ok) throw new Error('Failed to load requests')
+        const data = await res.json()
+        setRequests(Array.isArray(data) ? data : [])
+      } catch {
+        setFetchError('Could not load requests. Please refresh.')
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [])
 
   async function handle(id: number, status: string) {
@@ -100,6 +110,10 @@ export default function RequestsPage() {
             </button>
           ))}
         </div>
+
+        {fetchError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{fetchError}</div>
+        )}
 
         {loading ? (
           <div className="text-gray-400 text-center py-12">Loading…</div>

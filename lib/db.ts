@@ -130,6 +130,15 @@ async function initSchema() {
   // Migrate old role names: admin→superadmin, staff→admin
   try { await sql(`UPDATE users SET role = 'superadmin' WHERE role = 'admin'`) } catch {}
   try { await sql(`UPDATE users SET role = 'admin' WHERE role = 'staff'`) } catch {}
+  // Indexes for common lookups
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_alloc_asset ON allocations(asset_id)`) } catch {}
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_alloc_returned ON allocations(returned_at)`) } catch {}
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_alloc_active ON allocations(asset_id, returned_at)`) } catch {}
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_assets_tag ON assets(asset_tag)`) } catch {}
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type)`) } catch {}
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)`) } catch {}
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_requests_asset ON requests(asset_id)`) } catch {}
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)`) } catch {}
   await sql(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -247,6 +256,56 @@ export interface RequestWithDetails extends Request {
   handled_by_name: string | null
 }
 
+// ─── Asset row mapping (eliminates N+1 allocation queries) ───────────────────
+
+interface RawAssetRow extends Asset {
+  location_name: string | null
+  set_name: string | null
+  al_id: number | null
+  allocated_to: string | null
+  allocated_to_role: string | null
+  allocated_by_id: number | null
+  al_location_id: number | null
+  purpose: string | null
+  is_temporary: number | null
+  allocated_at: string | null
+  expected_return: string | null
+  returned_at: string | null
+  al_notes: string | null
+  al_by_name: string | null
+  al_loc_name: string | null
+}
+
+function mapAssetRow(row: RawAssetRow): AssetWithDetails {
+  return {
+    id: row.id, asset_tag: row.asset_tag, name: row.name, type: row.type,
+    model: row.model, serial_number: row.serial_number, status: row.status,
+    location_id: row.location_id, set_id: row.set_id, notes: row.notes,
+    purchase_date: row.purchase_date, warranty_expiry: row.warranty_expiry,
+    created_at: row.created_at, updated_at: row.updated_at,
+    location_name: row.location_name, set_name: row.set_name,
+    current_allocation: row.al_id ? {
+      id: row.al_id,
+      asset_id: row.id,
+      allocated_to: row.allocated_to!,
+      allocated_to_role: row.allocated_to_role,
+      allocated_by_id: row.allocated_by_id,
+      location_id: row.al_location_id,
+      purpose: row.purpose,
+      is_temporary: row.is_temporary ?? 0,
+      allocated_at: row.allocated_at!,
+      expected_return: row.expected_return,
+      returned_at: row.returned_at,
+      notes: row.al_notes,
+      allocated_by_name: row.al_by_name,
+      location_name: row.al_loc_name,
+      asset_name: row.name,
+      asset_tag: row.asset_tag,
+      asset_type: row.type,
+    } : null,
+  }
+}
+
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
 export const db = {
@@ -348,18 +407,23 @@ export const db = {
   },
   async getAssetsInSet(setId: number): Promise<AssetWithDetails[]> {
     const r = await sql(`
-      SELECT a.*, l.name AS location_name, s.name AS set_name
+      SELECT a.*, l.name AS location_name, s.name AS set_name,
+             al.id AS al_id, al.allocated_to, al.allocated_to_role,
+             al.allocated_by_id, al.location_id AS al_location_id,
+             al.purpose, al.is_temporary, al.allocated_at,
+             al.expected_return, al.returned_at, al.notes AS al_notes,
+             u.name AS al_by_name, al_loc.name AS al_loc_name
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
       LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN allocations al ON al.asset_id = a.id AND al.returned_at IS NULL
+        AND al.id = (SELECT id FROM allocations WHERE asset_id = a.id AND returned_at IS NULL ORDER BY allocated_at DESC LIMIT 1)
+      LEFT JOIN users u ON al.allocated_by_id = u.id
+      LEFT JOIN locations al_loc ON al.location_id = al_loc.id
       WHERE a.set_id = ?
       ORDER BY a.asset_tag ASC
     `, [setId])
-    const rows = r.rows as unknown as (Asset & { location_name: string | null; set_name: string | null })[]
-    return Promise.all(rows.map(async row => ({
-      ...row,
-      current_allocation: await db.getCurrentAllocation(row.id),
-    })))
+    return (r.rows as unknown as RawAssetRow[]).map(mapAssetRow)
   },
   async addAssetToSet(assetId: number, setId: number): Promise<void> {
     await sql(`UPDATE assets SET set_id = ? WHERE id = ?`, [setId, assetId])
@@ -372,45 +436,64 @@ export const db = {
   async getAllAssets(): Promise<AssetWithDetails[]> {
     await schemaReady
     const r = await sql(`
-      SELECT a.*, l.name AS location_name, s.name AS set_name
+      SELECT a.*, l.name AS location_name, s.name AS set_name,
+             al.id AS al_id, al.allocated_to, al.allocated_to_role,
+             al.allocated_by_id, al.location_id AS al_location_id,
+             al.purpose, al.is_temporary, al.allocated_at,
+             al.expected_return, al.returned_at, al.notes AS al_notes,
+             u.name AS al_by_name, al_loc.name AS al_loc_name
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
       LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN allocations al ON al.asset_id = a.id AND al.returned_at IS NULL
+        AND al.id = (SELECT id FROM allocations WHERE asset_id = a.id AND returned_at IS NULL ORDER BY allocated_at DESC LIMIT 1)
+      LEFT JOIN users u ON al.allocated_by_id = u.id
+      LEFT JOIN locations al_loc ON al.location_id = al_loc.id
       ORDER BY a.asset_tag ASC
     `)
-    const rows = r.rows as unknown as (Asset & { location_name: string | null; set_name: string | null })[]
-    return Promise.all(rows.map(async row => ({
-      ...row,
-      current_allocation: await db.getCurrentAllocation(row.id),
-    })))
+    return (r.rows as unknown as RawAssetRow[]).map(mapAssetRow)
   },
 
   async getAssetById(id: number): Promise<AssetWithDetails | undefined> {
     await schemaReady
     const r = await sql(`
-      SELECT a.*, l.name AS location_name, s.name AS set_name
+      SELECT a.*, l.name AS location_name, s.name AS set_name,
+             al.id AS al_id, al.allocated_to, al.allocated_to_role,
+             al.allocated_by_id, al.location_id AS al_location_id,
+             al.purpose, al.is_temporary, al.allocated_at,
+             al.expected_return, al.returned_at, al.notes AS al_notes,
+             u.name AS al_by_name, al_loc.name AS al_loc_name
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
       LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN allocations al ON al.asset_id = a.id AND al.returned_at IS NULL
+        AND al.id = (SELECT id FROM allocations WHERE asset_id = a.id AND returned_at IS NULL ORDER BY allocated_at DESC LIMIT 1)
+      LEFT JOIN users u ON al.allocated_by_id = u.id
+      LEFT JOIN locations al_loc ON al.location_id = al_loc.id
       WHERE a.id = ?
     `, [id])
-    const row = r.rows[0] as unknown as (Asset & { location_name: string | null; set_name: string | null }) | undefined
-    if (!row) return undefined
-    return { ...row, current_allocation: await db.getCurrentAllocation(id) }
+    return r.rows[0] ? mapAssetRow(r.rows[0] as unknown as RawAssetRow) : undefined
   },
 
   async getAssetByTag(tag: string): Promise<AssetWithDetails | undefined> {
     await schemaReady
     const r = await sql(`
-      SELECT a.*, l.name AS location_name, s.name AS set_name
+      SELECT a.*, l.name AS location_name, s.name AS set_name,
+             al.id AS al_id, al.allocated_to, al.allocated_to_role,
+             al.allocated_by_id, al.location_id AS al_location_id,
+             al.purpose, al.is_temporary, al.allocated_at,
+             al.expected_return, al.returned_at, al.notes AS al_notes,
+             u.name AS al_by_name, al_loc.name AS al_loc_name
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
       LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN allocations al ON al.asset_id = a.id AND al.returned_at IS NULL
+        AND al.id = (SELECT id FROM allocations WHERE asset_id = a.id AND returned_at IS NULL ORDER BY allocated_at DESC LIMIT 1)
+      LEFT JOIN users u ON al.allocated_by_id = u.id
+      LEFT JOIN locations al_loc ON al.location_id = al_loc.id
       WHERE a.asset_tag = ?
     `, [tag])
-    const row = r.rows[0] as unknown as (Asset & { location_name: string | null; set_name: string | null }) | undefined
-    if (!row) return undefined
-    return { ...row, current_allocation: await db.getCurrentAllocation(row.id) }
+    return r.rows[0] ? mapAssetRow(r.rows[0] as unknown as RawAssetRow) : undefined
   },
 
   async createAsset(data: {
@@ -438,7 +521,12 @@ export const db = {
 
   async nextAssetTag(type: string): Promise<string> {
     const prefix = type.substring(0, 3).toUpperCase()
-    const r = await sql(`SELECT asset_tag FROM assets WHERE asset_tag LIKE ? ORDER BY asset_tag DESC LIMIT 1`, [`MPS-${prefix}-%`])
+    // Cast the trailing numeric part to integer for correct numeric sort (not lexicographic)
+    const r = await sql(
+      `SELECT asset_tag FROM assets WHERE asset_tag LIKE ?
+       ORDER BY CAST(SUBSTR(asset_tag, LENGTH(?)+1) AS INTEGER) DESC LIMIT 1`,
+      [`MPS-${prefix}-%`, `MPS-${prefix}-`]
+    )
     const latest = r.rows[0] as unknown as { asset_tag: string } | undefined
     if (!latest) return `MPS-${prefix}-001`
     const num = parseInt((latest.asset_tag as string).split('-').pop() ?? '0', 10)

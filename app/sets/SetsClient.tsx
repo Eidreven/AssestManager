@@ -19,11 +19,11 @@ interface Location { id: number; name: string }
 interface Props {
   initialSets: AssetSet[]
   locations: Location[]
-  teachers: string[]
+  users: string[]
   isAdmin: boolean
 }
 
-export default function SetsClient({ initialSets, locations, teachers, isAdmin }: Props) {
+export default function SetsClient({ initialSets, locations, users, isAdmin }: Props) {
   const router = useRouter()
   const [sets, setSets] = useState(initialSets)
   const [showForm, setShowForm] = useState(false)
@@ -99,10 +99,10 @@ export default function SetsClient({ initialSets, locations, teachers, isAdmin }
                 value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
             </div>
             <div>
-              <label className="label">Responsible Teacher</label>
+              <label className="label">Responsible Person</label>
               <select className="input" value={form.responsible_teacher} onChange={e => setForm(f => ({ ...f, responsible_teacher: e.target.value }))}>
-                <option value="">— Select teacher —</option>
-                {teachers.map(t => <option key={t} value={t}>{t}</option>)}
+                <option value="">— Select person —</option>
+                {users.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>

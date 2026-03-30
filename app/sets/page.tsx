@@ -9,10 +9,10 @@ export default async function SetsPage() {
   const auth = getAuthFromCookies()
   const isAdminUser = isAdmin(auth)
 
-  const [sets, locations, teachers] = await Promise.all([
+  const [sets, locations, users] = await Promise.all([
     db.getAllSets(),
     db.getAllLocations(),
-    db.getTeachers(),
+    db.getAllUsers(),
   ])
 
   return (
@@ -20,7 +20,7 @@ export default async function SetsPage() {
       <SetsClient
         initialSets={sets}
         locations={locations}
-        teachers={teachers.map(t => t.name)}
+        users={users.map(u => u.name)}
         isAdmin={isAdminUser}
       />
     </AppShell>

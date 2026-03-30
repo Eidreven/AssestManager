@@ -24,27 +24,22 @@ export default async function AssetsPage({
     db.getTeachers(),
   ])
 
-  let assets = allAssets
-
-  if (searchParams?.status) {
-    assets = assets.filter(a => a.status === searchParams.status)
-  }
-  if (searchParams?.teacher) {
-    assets = assets.filter(a =>
-      a.current_allocation?.allocated_to === searchParams.teacher &&
-      a.current_allocation?.allocated_to_role === 'Teacher'
-    )
-  }
-  if (searchParams?.q) {
-    const q = searchParams.q.toLowerCase()
-    assets = assets.filter(a =>
+  const q = searchParams?.q?.toLowerCase()
+  const assets = allAssets.filter(a => {
+    if (searchParams?.status && a.status !== searchParams.status) return false
+    if (searchParams?.teacher && (
+      a.current_allocation?.allocated_to !== searchParams.teacher ||
+      a.current_allocation?.allocated_to_role !== 'Teacher'
+    )) return false
+    if (q && !(
       a.asset_tag.toLowerCase().includes(q) ||
       a.name.toLowerCase().includes(q) ||
       a.type.toLowerCase().includes(q) ||
-      (a.model?.toLowerCase().includes(q)) ||
-      (a.serial_number?.toLowerCase().includes(q))
-    )
-  }
+      a.model?.toLowerCase().includes(q) ||
+      a.serial_number?.toLowerCase().includes(q)
+    )) return false
+    return true
+  })
 
   return (
     <AppShell>

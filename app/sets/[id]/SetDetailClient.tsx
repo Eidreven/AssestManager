@@ -37,11 +37,11 @@ interface Props {
   setAssets: SetAsset[]
   unassigned: UnassignedAsset[]
   locations: Location[]
-  teachers: string[]
+  users: string[]
   isAdmin: boolean
 }
 
-export default function SetDetailClient({ set, setAssets, unassigned, locations, teachers, isAdmin }: Props) {
+export default function SetDetailClient({ set, setAssets, unassigned, locations, users, isAdmin }: Props) {
   const router = useRouter()
 
   const [assets, setAssets2] = useState(setAssets)
@@ -206,10 +206,10 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
               <input className="input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} required />
             </div>
             <div>
-              <label className="label">Responsible Teacher</label>
+              <label className="label">Responsible Person</label>
               <select className="input" value={editForm.responsible_teacher} onChange={e => setEditForm(f => ({ ...f, responsible_teacher: e.target.value }))}>
                 <option value="">— None —</option>
-                {teachers.map(t => <option key={t} value={t}>{t}</option>)}
+                {users.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
@@ -243,8 +243,8 @@ export default function SetDetailClient({ set, setAssets, unassigned, locations,
           <div className="flex-1 min-w-48">
             <label className="label">Allocate all to</label>
             <select className="input" value={allocateTeacher} onChange={e => setAllocateTeacher(e.target.value)}>
-              <option value="">— Select teacher —</option>
-              {teachers.map(t => <option key={t} value={t}>{t}</option>)}
+              <option value="">— Select person —</option>
+              {users.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <button
