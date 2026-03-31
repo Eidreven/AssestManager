@@ -1,18 +1,12 @@
-import sgMail from '@sendgrid/mail'
+import { Resend } from 'resend'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'shamikararavindu@gmail.com'
 const ADMIN_EMAIL_2 = process.env.ADMIN_EMAIL_2 ?? 'ravindu.shamikara@education.nt.gov.au'
 const ADMIN_EMAILS = [ADMIN_EMAIL, ADMIN_EMAIL_2].filter(Boolean)
-const FROM_EMAIL = process.env.GMAIL_USER ?? 'katherinent2025@gmail.com'
-const FROM_NAME = 'MPS Asset Manager'
+const FROM = `MPS Asset Manager <${process.env.FROM_EMAIL ?? 'noreply@clenturait.com.au'}>`
 const SCHOOL = 'Macfarlane Primary School'
-
-function getClient() {
-  const key = process.env.SENDGRID_API_KEY
-  if (!key) return null
-  sgMail.setApiKey(key)
-  return sgMail
-}
 
 function baseTemplate(title: string, body: string) {
   return `<!DOCTYPE html>
@@ -59,14 +53,13 @@ const PRIORITY_LABELS: Record<string, string> = {
 }
 
 async function sendMail(to: string | string[], subject: string, html: string) {
-  const client = getClient()
-  if (!client) {
-    console.warn('Email not configured — set SENDGRID_API_KEY in environment variables')
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('Email not configured — set RESEND_API_KEY in environment variables')
     return
   }
   const recipients = Array.isArray(to) ? to : [to]
   await Promise.all(recipients.map(addr =>
-    client.send({ to: addr, from: { email: FROM_EMAIL, name: FROM_NAME }, subject, html })
+    resend.emails.send({ from: FROM, to: addr, subject, html })
   ))
 }
 
