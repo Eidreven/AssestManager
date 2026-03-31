@@ -1,10 +1,20 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
-const ADMIN_EMAIL = 'shamikararavindu@gmail.com'
-const FROM = 'MPS Asset Manager <onboarding@resend.dev>'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'shamikararavindu@gmail.com'
+const FROM_NAME = 'MPS Asset Manager'
 const SCHOOL = 'Macfarlane Primary School'
+
+function getTransporter() {
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  })
+}
 
 function baseTemplate(title: string, body: string) {
   return `<!DOCTYPE html>
@@ -55,6 +65,20 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: '🔴 Urgent',
 }
 
+async function sendMail(to: string | string[], subject: string, html: string) {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.warn('Email not configured — set GMAIL_USER and GMAIL_APP_PASSWORD in .env.local')
+    return
+  }
+  const transporter = getTransporter()
+  await transporter.sendMail({
+    from: `"${FROM_NAME}" <${process.env.GMAIL_USER}>`,
+    to: Array.isArray(to) ? to.join(', ') : to,
+    subject,
+    html,
+  })
+}
+
 // ── 0. Password reset ─────────────────────────────────────────────────────────
 
 export async function sendPasswordResetEmail(params: {
@@ -79,12 +103,7 @@ export async function sendPasswordResetEmail(params: {
     </p>
   `
 
-  await resend.emails.send({
-    from: FROM,
-    to: toEmail,
-    subject: 'Reset your MPS Asset Manager password',
-    html: baseTemplate('Password Reset', body),
-  })
+  await sendMail(toEmail, 'Reset your MPS Asset Manager password', baseTemplate('Password Reset', body))
 }
 
 // ── 1. Notify admin of new request ────────────────────────────────────────────
@@ -128,12 +147,11 @@ export async function sendNewRequestNotification(params: {
     </a>
   `
 
-  await resend.emails.send({
-    from: FROM,
-    to: ADMIN_EMAIL,
-    subject: `[${PRIORITY_LABELS[priority] ?? priority}] New ${requestType} request — ${assetTag}`,
-    html: baseTemplate('New Request Submitted', body),
-  })
+  await sendMail(
+    ADMIN_EMAIL,
+    `[${PRIORITY_LABELS[priority] ?? priority}] New ${requestType} request — ${assetTag}`,
+    baseTemplate('New Request Submitted', body)
+  )
 }
 
 // ── 2. Confirm receipt to requester ───────────────────────────────────────────
@@ -166,15 +184,10 @@ export async function sendRequestConfirmation(params: {
     </p>
   `
 
-  await resend.emails.send({
-    from: FROM,
-    to: requesterEmail,
-    subject: `Request received — ${assetTag}`,
-    html: baseTemplate('Request Received', body),
-  })
+  await sendMail(requesterEmail, `Request received — ${assetTag}`, baseTemplate('Request Received', body))
 }
 
-// ── 4. Notify admin of new allocation ────────────────────────────────────────
+// ── 3. Notify admin of new allocation ─────────────────────────────────────────
 
 export async function sendAllocationNotification(params: {
   assetTag: string
@@ -218,15 +231,14 @@ export async function sendAllocationNotification(params: {
     </a>
   `
 
-  await resend.emails.send({
-    from: FROM,
-    to: ADMIN_EMAIL,
-    subject: `Device allocated — ${assetTag} → ${allocatedTo}`,
-    html: baseTemplate('Device Allocated', body),
-  })
+  await sendMail(
+    ADMIN_EMAIL,
+    `Device allocated — ${assetTag} → ${allocatedTo}`,
+    baseTemplate('Device Allocated', body)
+  )
 }
 
-// ── 5. Notify admin when device is returned ───────────────────────────────────
+// ── 4. Notify admin when device is returned ───────────────────────────────────
 
 export async function sendReturnNotification(params: {
   assetTag: string
@@ -255,14 +267,14 @@ export async function sendReturnNotification(params: {
     </a>
   `
 
-  await resend.emails.send({
-    from: FROM,
-    to: ADMIN_EMAIL,
-    subject: `Device returned — ${assetTag} now available`,
-    html: baseTemplate('Device Returned', body),
-  })
+  await sendMail(
+    ADMIN_EMAIL,
+    `Device returned — ${assetTag} now available`,
+    baseTemplate('Device Returned', body)
+  )
 }
 
+// ── 5. Request status update to requester ─────────────────────────────────────
 
 export async function sendRequestStatusUpdate(params: {
   requesterName: string
@@ -300,10 +312,9 @@ export async function sendRequestStatusUpdate(params: {
     </p>
   `
 
-  await resend.emails.send({
-    from: FROM,
-    to: requesterEmail,
-    subject: `Your request has been ${status} — ${assetTag}`,
-    html: baseTemplate(`Request ${approved ? 'Approved' : 'Rejected'}`, body),
-  })
+  await sendMail(
+    requesterEmail,
+    `Your request has been ${status} — ${assetTag}`,
+    baseTemplate(`Request ${approved ? 'Approved' : 'Rejected'}`, body)
+  )
 }
