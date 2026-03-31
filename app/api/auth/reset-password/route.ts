@@ -10,9 +10,9 @@ export async function POST(req: NextRequest) {
 
     const record = await db.getPasswordResetToken(token)
 
-    if (!record) return NextResponse.json({ error: 'Invalid or expired reset link' }, { status: 400 })
-    if (record.used) return NextResponse.json({ error: 'This reset link has already been used' }, { status: 400 })
-    if (new Date(record.expires_at) < new Date()) return NextResponse.json({ error: 'This reset link has expired' }, { status: 400 })
+    if (!record) return NextResponse.json({ error: 'Invalid or expired reset code' }, { status: 400 })
+    if (record.used) return NextResponse.json({ error: 'This reset code has already been used' }, { status: 400 })
+    if (new Date(record.expires_at) < new Date()) return NextResponse.json({ error: 'This reset code has expired' }, { status: 400 })
 
     const hash = await bcrypt.hash(password, 12)
     await db.updateUserPassword(record.user_id, hash)

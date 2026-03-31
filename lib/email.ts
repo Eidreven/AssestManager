@@ -68,23 +68,27 @@ async function sendMail(to: string | string[], subject: string, html: string) {
 export async function sendPasswordResetEmail(params: {
   toEmail: string
   toName: string
-  resetUrl: string
+  code: string
 }) {
-  const { toEmail, toName, resetUrl } = params
+  const { toEmail, toName, code } = params
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${toName},</p>
     <p style="margin:0 0 20px;color:#374151;font-size:15px;">
       We received a request to reset your password for MPS Asset Manager.
-      Click the button below to choose a new password.
+      Use the code below to reset your password.
     </p>
-    <a href="${resetUrl}" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:15px;margin-bottom:20px;">
-      Reset My Password
-    </a>
-    <p style="margin:20px 0 0;color:#6b7280;font-size:13px;">
-      This link expires in <strong>1 hour</strong>. If you did not request this, you can safely ignore this email.
+    <div style="background:#f3f4f6;border:2px dashed #d1d5db;border-radius:12px;padding:20px 32px;text-align:center;margin-bottom:20px;">
+      <p style="margin:0 0 4px;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Your reset code</p>
+      <p style="margin:0;color:#1e3a8a;font-size:36px;font-weight:800;letter-spacing:8px;font-family:monospace;">${code}</p>
+    </div>
+    <p style="margin:0 0 8px;color:#374151;font-size:14px;">
+      Go to the MPS Asset Manager forgot password page and enter this code when prompted.
+    </p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">
+      This code expires in <strong>1 hour</strong>. If you did not request this, you can safely ignore this email.
     </p>
   `
-  await sendMail(toEmail, 'Reset your MPS Asset Manager password', baseTemplate('Password Reset', body))
+  await sendMail(toEmail, 'Your MPS Asset Manager password reset code', baseTemplate('Password Reset Code', body))
 }
 
 // ── 1. Notify admin of new request ────────────────────────────────────────────
@@ -119,9 +123,7 @@ export async function sendNewRequestNotification(params: {
         </table>
       </td></tr>
     </table>
-    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/requests" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
-      View Request #${requestId}
-    </a>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Please log in to MPS Asset Manager to review and action this request (Request #${requestId}).</p>
   `
   await sendMail(
     ADMIN_EMAILS,
@@ -192,7 +194,7 @@ export async function sendAllocationNotification(params: {
         </table>
       </td></tr>
     </table>
-    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">View Assets</a>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Log in to MPS Asset Manager to view the full asset list.</p>
   `
   await sendMail(ADMIN_EMAILS, `Device allocated — ${assetTag} → ${allocatedTo}`, baseTemplate('Device Allocated', body))
 }
@@ -217,7 +219,7 @@ export async function sendReturnNotification(params: {
         </table>
       </td></tr>
     </table>
-    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">View Assets</a>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Log in to MPS Asset Manager to view the full asset list.</p>
   `
   await sendMail(ADMIN_EMAILS, `Device returned — ${assetTag} now available`, baseTemplate('Device Returned', body))
 }

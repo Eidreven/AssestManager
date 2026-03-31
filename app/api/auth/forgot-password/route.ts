@@ -15,19 +15,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
+    const code = Math.floor(100000 + Math.random() * 900000).toString() // 6-digit numeric code
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour
 
-    await db.createPasswordResetToken(user.id, token, expiresAt)
-
-    const host = req.headers.get('host') ?? 'localhost:3000'
-    const protocol = host.includes('localhost') ? 'http' : 'https'
-    const resetUrl = `${protocol}://${host}/reset-password?token=${token}`
+    await db.createPasswordResetToken(user.id, code, expiresAt)
 
     await sendPasswordResetEmail({
       toEmail: user.email,
       toName: user.name,
-      resetUrl,
+      code,
     })
 
     return NextResponse.json({ ok: true })
