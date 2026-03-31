@@ -127,9 +127,6 @@ async function initSchema() {
     created_at TEXT DEFAULT (datetime('now'))
   )`)
   try { await sql(`ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`) } catch {}
-  // Migrate old role names: admin→superadmin, staff→admin
-  try { await sql(`UPDATE users SET role = 'superadmin' WHERE role = 'admin'`) } catch {}
-  try { await sql(`UPDATE users SET role = 'admin' WHERE role = 'staff'`) } catch {}
   // Indexes for common lookups
   try { await sql(`CREATE INDEX IF NOT EXISTS idx_alloc_asset ON allocations(asset_id)`) } catch {}
   try { await sql(`CREATE INDEX IF NOT EXISTS idx_alloc_returned ON allocations(returned_at)`) } catch {}
