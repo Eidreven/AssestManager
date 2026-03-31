@@ -1,6 +1,8 @@
 import sgMail from '@sendgrid/mail'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'shamikararavindu@gmail.com'
+const ADMIN_EMAIL_2 = process.env.ADMIN_EMAIL_2 ?? 'ravindu.shamikara@education.nt.gov.au'
+const ADMIN_EMAILS = [ADMIN_EMAIL, ADMIN_EMAIL_2].filter(Boolean)
 const FROM_EMAIL = process.env.GMAIL_USER ?? 'katherinent2025@gmail.com'
 const FROM_NAME = 'MPS Asset Manager'
 const SCHOOL = 'Macfarlane Primary School'
@@ -56,18 +58,16 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: '🔴 Urgent',
 }
 
-async function sendMail(to: string, subject: string, html: string) {
+async function sendMail(to: string | string[], subject: string, html: string) {
   const client = getClient()
   if (!client) {
     console.warn('Email not configured — set SENDGRID_API_KEY in environment variables')
     return
   }
-  await client.send({
-    to,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
-    subject,
-    html,
-  })
+  const recipients = Array.isArray(to) ? to : [to]
+  await Promise.all(recipients.map(addr =>
+    client.send({ to: addr, from: { email: FROM_EMAIL, name: FROM_NAME }, subject, html })
+  ))
 }
 
 // ── 0. Password reset ─────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ export async function sendNewRequestNotification(params: {
     </a>
   `
   await sendMail(
-    ADMIN_EMAIL,
+    ADMIN_EMAILS,
     `[${PRIORITY_LABELS[priority] ?? priority}] New ${requestType} request — ${assetTag}`,
     baseTemplate('New Request Submitted', body)
   )
@@ -201,7 +201,7 @@ export async function sendAllocationNotification(params: {
     </table>
     <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">View Assets</a>
   `
-  await sendMail(ADMIN_EMAIL, `Device allocated — ${assetTag} → ${allocatedTo}`, baseTemplate('Device Allocated', body))
+  await sendMail(ADMIN_EMAILS, `Device allocated — ${assetTag} → ${allocatedTo}`, baseTemplate('Device Allocated', body))
 }
 
 // ── 4. Notify admin when device is returned ───────────────────────────────────
@@ -226,7 +226,7 @@ export async function sendReturnNotification(params: {
     </table>
     <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">View Assets</a>
   `
-  await sendMail(ADMIN_EMAIL, `Device returned — ${assetTag} now available`, baseTemplate('Device Returned', body))
+  await sendMail(ADMIN_EMAILS, `Device returned — ${assetTag} now available`, baseTemplate('Device Returned', body))
 }
 
 // ── 5. Request status update to requester ─────────────────────────────────────
