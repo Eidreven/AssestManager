@@ -1,19 +1,15 @@
-import nodemailer from 'nodemailer'
+import sgMail from '@sendgrid/mail'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'shamikararavindu@gmail.com'
+const FROM_EMAIL = process.env.GMAIL_USER ?? 'katherinent2025@gmail.com'
 const FROM_NAME = 'MPS Asset Manager'
 const SCHOOL = 'Macfarlane Primary School'
 
-function getTransporter() {
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  })
+function getClient() {
+  const key = process.env.SENDGRID_API_KEY
+  if (!key) return null
+  sgMail.setApiKey(key)
+  return sgMail
 }
 
 function baseTemplate(title: string, body: string) {
@@ -24,16 +20,11 @@ function baseTemplate(title: string, body: string) {
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
     <tr><td align="center">
       <table width="100%" style="max-width:560px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
-        <!-- Header -->
         <tr><td style="background:#1e3a8a;padding:24px 32px;">
           <p style="margin:0;color:#93c5fd;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;">${SCHOOL}</p>
           <h1 style="margin:4px 0 0;color:#fff;font-size:20px;font-weight:700;">${title}</h1>
         </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:28px 32px;">
-          ${body}
-        </td></tr>
-        <!-- Footer -->
+        <tr><td style="padding:28px 32px;">${body}</td></tr>
         <tr><td style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;">
           <p style="margin:0;color:#9ca3af;font-size:12px;">MPS Asset Manager · ${SCHOOL}</p>
         </td></tr>
@@ -65,15 +56,15 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: '🔴 Urgent',
 }
 
-async function sendMail(to: string | string[], subject: string, html: string) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.warn('Email not configured — set GMAIL_USER and GMAIL_APP_PASSWORD in .env.local')
+async function sendMail(to: string, subject: string, html: string) {
+  const client = getClient()
+  if (!client) {
+    console.warn('Email not configured — set SENDGRID_API_KEY in environment variables')
     return
   }
-  const transporter = getTransporter()
-  await transporter.sendMail({
-    from: `"${FROM_NAME}" <${process.env.GMAIL_USER}>`,
-    to: Array.isArray(to) ? to.join(', ') : to,
+  await client.send({
+    to,
+    from: { email: FROM_EMAIL, name: FROM_NAME },
     subject,
     html,
   })
@@ -87,22 +78,19 @@ export async function sendPasswordResetEmail(params: {
   resetUrl: string
 }) {
   const { toEmail, toName, resetUrl } = params
-
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${toName},</p>
     <p style="margin:0 0 20px;color:#374151;font-size:15px;">
       We received a request to reset your password for MPS Asset Manager.
       Click the button below to choose a new password.
     </p>
-    <a href="${resetUrl}"
-       style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:15px;margin-bottom:20px;">
+    <a href="${resetUrl}" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:15px;margin-bottom:20px;">
       Reset My Password
     </a>
     <p style="margin:20px 0 0;color:#6b7280;font-size:13px;">
-      This link expires in <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email.
+      This link expires in <strong>1 hour</strong>. If you did not request this, you can safely ignore this email.
     </p>
   `
-
   await sendMail(toEmail, 'Reset your MPS Asset Manager password', baseTemplate('Password Reset', body))
 }
 
@@ -120,11 +108,8 @@ export async function sendNewRequestNotification(params: {
   reason?: string | null
 }) {
   const { requestId, assetTag, assetName, requestType, priority, requesterName, requesterEmail, requesterPhone, reason } = params
-
   const body = `
-    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      A new request has been submitted and needs your attention.
-    </p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">A new request has been submitted and needs your attention.</p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
         <span style="font-weight:700;color:#1e3a8a;font-family:monospace;font-size:14px;">${assetTag}</span>
@@ -141,12 +126,10 @@ export async function sendNewRequestNotification(params: {
         </table>
       </td></tr>
     </table>
-    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/requests"
-       style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
+    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/requests" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
       View Request #${requestId}
     </a>
   `
-
   await sendMail(
     ADMIN_EMAIL,
     `[${PRIORITY_LABELS[priority] ?? priority}] New ${requestType} request — ${assetTag}`,
@@ -164,12 +147,9 @@ export async function sendRequestConfirmation(params: {
   requestType: string
 }) {
   const { requesterName, requesterEmail, assetTag, assetName, requestType } = params
-
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${requesterName},</p>
-    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      Your request has been received. The IT team will review it shortly.
-    </p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">Your request has been received. The IT team will review it shortly.</p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="padding:16px;">
         <table cellpadding="0" cellspacing="0" width="100%">
@@ -179,11 +159,8 @@ export async function sendRequestConfirmation(params: {
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;">
-      You will receive another email once your request has been reviewed.
-    </p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">You will receive another email once your request has been reviewed.</p>
   `
-
   await sendMail(requesterEmail, `Request received — ${assetTag}`, baseTemplate('Request Received', body))
 }
 
@@ -203,11 +180,8 @@ export async function sendAllocationNotification(params: {
   notes?: string | null
 }) {
   const { assetTag, assetName, assetType, allocatedTo, allocatedToRole, locationName, purpose, isTemporary, expectedReturn, allocatedByName, notes } = params
-
   const body = `
-    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      A device has been allocated by <strong>${allocatedByName}</strong>.
-    </p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">A device has been allocated by <strong>${allocatedByName}</strong>.</p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
         <span style="font-weight:700;color:#1e3a8a;font-family:monospace;font-size:14px;">${assetTag}</span>
@@ -225,17 +199,9 @@ export async function sendAllocationNotification(params: {
         </table>
       </td></tr>
     </table>
-    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets"
-       style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
-      View Assets
-    </a>
+    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">View Assets</a>
   `
-
-  await sendMail(
-    ADMIN_EMAIL,
-    `Device allocated — ${assetTag} → ${allocatedTo}`,
-    baseTemplate('Device Allocated', body)
-  )
+  await sendMail(ADMIN_EMAIL, `Device allocated — ${assetTag} → ${allocatedTo}`, baseTemplate('Device Allocated', body))
 }
 
 // ── 4. Notify admin when device is returned ───────────────────────────────────
@@ -247,11 +213,8 @@ export async function sendReturnNotification(params: {
   returnedByName: string
 }) {
   const { assetTag, assetName, returnedFrom, returnedByName } = params
-
   const body = `
-    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      A device has been marked as returned by <strong>${returnedByName}</strong>.
-    </p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">A device has been marked as returned by <strong>${returnedByName}</strong>.</p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="padding:16px;">
         <table cellpadding="0" cellspacing="0" width="100%">
@@ -261,17 +224,9 @@ export async function sendReturnNotification(params: {
         </table>
       </td></tr>
     </table>
-    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets"
-       style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
-      View Assets
-    </a>
+    <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/assets" style="display:inline-block;background:#1e3a8a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">View Assets</a>
   `
-
-  await sendMail(
-    ADMIN_EMAIL,
-    `Device returned — ${assetTag} now available`,
-    baseTemplate('Device Returned', body)
-  )
+  await sendMail(ADMIN_EMAIL, `Device returned — ${assetTag} now available`, baseTemplate('Device Returned', body))
 }
 
 // ── 5. Request status update to requester ─────────────────────────────────────
@@ -286,16 +241,12 @@ export async function sendRequestStatusUpdate(params: {
   handlerNotes?: string | null
 }) {
   const { requesterName, requesterEmail, assetTag, assetName, requestType, status, handlerNotes } = params
-
   const approved = status === 'approved' || status === 'completed'
   const statusLabel = status === 'approved' ? '✅ Approved' : status === 'completed' ? '✅ Completed' : '❌ Rejected'
-
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${requesterName},</p>
     <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      ${approved
-        ? 'Good news — your request has been approved.'
-        : 'Your request has been reviewed and unfortunately cannot be fulfilled at this time.'}
+      ${approved ? 'Good news — your request has been approved.' : 'Your request has been reviewed and unfortunately cannot be fulfilled at this time.'}
     </p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="padding:16px;">
@@ -307,14 +258,7 @@ export async function sendRequestStatusUpdate(params: {
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;">
-      If you have any questions, please contact the IT team directly.
-    </p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">If you have any questions, please contact the IT team directly.</p>
   `
-
-  await sendMail(
-    requesterEmail,
-    `Your request has been ${status} — ${assetTag}`,
-    baseTemplate(`Request ${approved ? 'Approved' : 'Rejected'}`, body)
-  )
+  await sendMail(requesterEmail, `Your request has been ${status} — ${assetTag}`, baseTemplate(`Request ${approved ? 'Approved' : 'Rejected'}`, body))
 }
