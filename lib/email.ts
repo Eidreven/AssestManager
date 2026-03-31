@@ -5,7 +5,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'shamikararavindu@gmail.com'
 const ADMIN_EMAIL_2 = process.env.ADMIN_EMAIL_2 ?? 'ravindu.shamikara@education.nt.gov.au'
 const ADMIN_EMAILS = [ADMIN_EMAIL, ADMIN_EMAIL_2].filter(Boolean)
-const FROM = `MPS Asset Manager <${process.env.FROM_EMAIL ?? 'noreply@clenturait.com.au'}>`
+const FROM = `MPS Asset Manager <${process.env.FROM_EMAIL ?? 'macfarlane@clenturait.com.au'}>`
 const SCHOOL = 'Macfarlane Primary School'
 
 function baseTemplate(title: string, body: string) {
