@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
 
   setAuthCookie(token)
 
-  try { await db.logActivity(user.id, user.name, 'login', `Signed in as ${user.role}`) } catch {}
+  // Log login — deduplicated (skips if same user logged in within 30s) and non-blocking for speed
+  db.logLogin(user.id, user.name, user.role).catch(() => {})
 
   return NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email, role: user.role },

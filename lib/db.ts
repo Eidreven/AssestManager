@@ -720,6 +720,19 @@ export const db = {
     await sql(`INSERT INTO activity_logs (user_id, user_name, action, detail) VALUES (?, ?, ?, ?)`,
       [userId, userName, action, detail])
   },
+  /** Login-specific logger — deduplicates: skips insert if same user logged in within last 30 seconds */
+  async logLogin(userId: number, userName: string, role: string): Promise<void> {
+    await schemaReady
+    await sql(`
+      INSERT INTO activity_logs (user_id, user_name, action, detail)
+      SELECT ?, ?, 'login', ?
+      WHERE NOT EXISTS (
+        SELECT 1 FROM activity_logs
+        WHERE user_id = ? AND action = 'login'
+        AND created_at > datetime('now', '-30 seconds')
+      )
+    `, [userId, userName, `Signed in as ${role}`, userId])
+  },
   async getRecentActivity(limit = 200): Promise<ActivityLog[]> {
     await schemaReady
     const r = await sql(`SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT ?`, [limit])

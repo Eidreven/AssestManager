@@ -28,6 +28,9 @@ const ACTION_LABEL: Record<string, string> = {
   request_rejected: 'Request rejected',
   request_completed: 'Request completed',
   status_changed: 'Status changed',
+  user_created: 'User created',
+  user_updated: 'User updated',
+  user_deleted: 'User deleted',
 }
 const ACTION_BADGE: Record<string, string> = {
   login: 'bg-blue-100 text-blue-700',
@@ -38,6 +41,9 @@ const ACTION_BADGE: Record<string, string> = {
   request_rejected: 'bg-red-100 text-red-700',
   request_completed: 'bg-teal-100 text-teal-700',
   status_changed: 'bg-amber-100 text-amber-700',
+  user_created: 'bg-violet-100 text-violet-700',
+  user_updated: 'bg-orange-100 text-orange-700',
+  user_deleted: 'bg-red-100 text-red-700',
 }
 
 export default function LogsClient({ allocations, activityLogs }: Props) {
