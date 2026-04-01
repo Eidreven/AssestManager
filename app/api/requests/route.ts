@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthFromCookies } from '@/lib/auth'
+import { getAuthFromCookies, isAdmin } from '@/lib/auth'
 import { sendNewRequestNotification, sendRequestConfirmation } from '@/lib/email'
 
 export async function GET() {
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const requests = auth.role === 'admin' ? await db.getAllRequests() : await db.getPendingRequests()
+  const requests = isAdmin(auth) ? await db.getAllRequests() : await db.getPendingRequests()
   return NextResponse.json(requests)
 }
 
