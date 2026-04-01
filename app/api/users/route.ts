@@ -36,7 +36,5 @@ export async function POST(req: NextRequest) {
   const hash = await bcrypt.hash(password, 12)
   const id = await db.createUser(name, email.toLowerCase().trim(), hash, requestedRole)
 
-  try { await db.logActivity(auth.userId, auth.name, 'user_created', `Created account: ${name} (${email.toLowerCase().trim()}) [${requestedRole}]`) } catch {}
-
   return NextResponse.json({ id, name, email, role: requestedRole }, { status: 201 })
 }

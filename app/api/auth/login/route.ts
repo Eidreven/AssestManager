@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { signToken, setAuthCookie } from '@/lib/auth'
+// Note: login events not written to DB — keeps login fast
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,9 +30,6 @@ export async function POST(req: NextRequest) {
   })
 
   setAuthCookie(token)
-
-  // Log login — deduplicated (skips if same user logged in within 30s) and non-blocking for speed
-  db.logLogin(user.id, user.name, user.role).catch(() => {})
 
   return NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email, role: user.role },

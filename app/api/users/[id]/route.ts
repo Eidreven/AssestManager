@@ -29,16 +29,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   await db.updateUser(id, name.trim(), email.toLowerCase().trim(), role)
-
-  // Build change description for audit log
-  const changes: string[] = []
-  if (target.name !== name.trim()) changes.push(`name: "${target.name}" → "${name.trim()}"`)
-  if (target.email !== email.toLowerCase().trim()) changes.push(`email: ${target.email} → ${email.toLowerCase().trim()}`)
-  if (target.role !== role) changes.push(`role: ${target.role} → ${role}`)
-  const detail = changes.length > 0 ? `Updated ${target.name} (${target.email}): ${changes.join(', ')}` : `Updated ${target.name} (no changes)`
-
-  try { await db.logActivity(auth.userId, auth.name, 'user_updated', detail) } catch {}
-
   return NextResponse.json({ ok: true })
 }
 
@@ -58,7 +48,5 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   await db.deleteUser(id)
-  try { await db.logActivity(auth.userId, auth.name, 'user_deleted', `Deleted account: ${target?.name} (${target?.email}) [${target?.role}]`) } catch {}
-
   return NextResponse.json({ ok: true })
 }

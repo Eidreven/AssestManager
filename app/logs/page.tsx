@@ -11,17 +11,14 @@ export default async function LogsPage() {
   if (!auth) redirect('/login')
   if (!isAdmin(auth)) redirect('/dashboard')
 
-  const [allocations, activityLogs] = await Promise.all([
+  const [allocations, requests] = await Promise.all([
     db.getAllAllocations(),
-    db.getRecentActivity(500),
+    db.getAllRequests(),
   ])
-
-  // Auto-purge activity logs older than 30 days (silently)
-  db.purgeActivityLogsOlderThan(30).catch(() => {})
 
   return (
     <AppShell>
-      <LogsClient allocations={allocations} activityLogs={activityLogs} />
+      <LogsClient allocations={allocations} requests={requests} />
     </AppShell>
   )
 }

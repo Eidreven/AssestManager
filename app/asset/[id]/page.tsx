@@ -13,14 +13,13 @@ export default async function AssetDetailPage({ params }: { params: { id: string
   const assetId = Number(params.id)
 
   // Fetch everything in parallel — asset id is known from params
-  const [asset, locations, teachers, sets, history, requests, assetLogs] = await Promise.all([
+  const [asset, locations, teachers, sets, history, requests] = await Promise.all([
     db.getAssetById(assetId),
     db.getAllLocations(),
     db.getTeachers(),
     db.getAllSets(),
     db.getAllocationHistory(assetId),
     db.getRequestsByAsset(assetId),
-    db.getAssetLogs(assetId),
   ])
   if (!asset) notFound()
 
@@ -53,20 +52,30 @@ export default async function AssetDetailPage({ params }: { params: { id: string
     }
   }
 
-  // Convert asset_logs → timeline entries
-  for (const log of assetLogs) {
-    const type = log.event_type as TimelineEntry['type']
-    // Skip if not a recognised type
-    if (!['registered','allocated','returned','request_created','request_approved','request_rejected','request_completed','status_changed','edited'].includes(type)) continue
-    // Skip allocation/return duplicates (already built from allocations table)
-    if (type === 'allocated' || type === 'returned') continue
+  // Convert requests → timeline entries (built from the requests table directly)
+  for (const r of requests) {
+    const typeLabel = r.request_type === 'borrow' ? 'Borrow' : r.request_type === 'issue' ? 'Fault report' : 'Relocation'
     timeline.push({
-      id: `log-${log.id}`,
-      type,
-      timestamp: log.created_at,
-      actorName: log.actor_name,
-      summary: log.detail ?? type,
+      id: `req-created-${r.id}`,
+      type: 'request_created',
+      timestamp: r.created_at,
+      actorName: r.requester_name,
+      summary: `${typeLabel} requested by ${r.requester_name}${r.requester_class ? ` (${r.requester_class})` : ''}`,
+      detail: r.reason ?? null,
     })
+    if (r.handled_at && r.status !== 'pending') {
+      const eventType = r.status === 'approved' ? 'request_approved'
+        : r.status === 'rejected' ? 'request_rejected'
+        : 'request_completed'
+      timeline.push({
+        id: `req-handled-${r.id}`,
+        type: eventType as TimelineEntry['type'],
+        timestamp: r.handled_at,
+        actorName: r.handled_by_name ?? null,
+        summary: `${typeLabel} request ${r.status}`,
+        detail: r.handler_notes ?? null,
+      })
+    }
   }
 
   // Sort newest first
