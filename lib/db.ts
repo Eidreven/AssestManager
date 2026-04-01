@@ -2,50 +2,57 @@
 type SqlValue = string | number | null
 interface Row { [col: string]: SqlValue }
 
+const TURSO_URL = () => (process.env.TURSO_DATABASE_URL ?? '').replace('libsql://', 'https://')
+const TURSO_TOKEN = () => process.env.TURSO_AUTH_TOKEN ?? ''
+
+function encodeArgs(args: SqlValue[]) {
+  return args.map(a => {
+    if (a === null) return { type: 'null' }
+    if (typeof a === 'number') return Number.isInteger(a)
+      ? { type: 'integer', value: String(a) }
+      : { type: 'float', value: a }
+    return { type: 'text', value: a }
+  })
+}
+
+function decodeRows(cols: { name: string }[], rows: SqlValue[][]): Row[] {
+  return rows.map(r => Object.fromEntries(cols.map((c, i) => {
+    const cell = r[i] as { type: string; value: unknown } | null
+    if (!cell || cell.type === 'null') return [c.name, null]
+    if (cell.type === 'integer') return [c.name, Number(cell.value)]
+    if (cell.type === 'float') return [c.name, Number(cell.value)]
+    return [c.name, cell.value as SqlValue]
+  })))
+}
+
 async function sql(query: string, args: SqlValue[] = []): Promise<{ rows: Row[]; lastInsertRowid: number | null }> {
-  const baseUrl = (process.env.TURSO_DATABASE_URL ?? '')
-    .replace('libsql://', 'https://')
-  const token = process.env.TURSO_AUTH_TOKEN ?? ''
-
-  const body = {
-    requests: [{
-      type: 'execute',
-      stmt: {
-        sql: query,
-        args: args.map(a => {
-          if (a === null) return { type: 'null' }
-          if (typeof a === 'number') return Number.isInteger(a)
-            ? { type: 'integer', value: String(a) }
-            : { type: 'float', value: a }
-          return { type: 'text', value: a }
-        }),
-      },
-    }],
-  }
-
-  const res = await fetch(`${baseUrl}/v2/pipeline`, {
+  const body = { requests: [{ type: 'execute', stmt: { sql: query, args: encodeArgs(args) } }] }
+  const res = await fetch(`${TURSO_URL()}/v2/pipeline`, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { 'Authorization': `Bearer ${TURSO_TOKEN()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     cache: 'no-store',
   })
-
   if (!res.ok) throw new Error(`Turso HTTP ${res.status}: ${await res.text()}`)
   const data = await res.json() as { results: { type: string; error?: { message: string }; response?: { result: { cols: { name: string }[]; rows: SqlValue[][]; last_insert_rowid: string | null } } }[] }
   const result = data.results[0]
   if (result.type === 'error') throw new Error(result.error!.message)
-
   const { cols, rows, last_insert_rowid } = result.response!.result
-  return {
-    rows: rows.map(r => Object.fromEntries(cols.map((c, i) => {
-      const cell = r[i] as { type: string; value: unknown } | null
-      if (!cell || cell.type === 'null') return [c.name, null]
-      if (cell.type === 'integer') return [c.name, Number(cell.value)]
-      if (cell.type === 'float') return [c.name, Number(cell.value)]
-      return [c.name, cell.value as SqlValue]
-    }))),
-    lastInsertRowid: last_insert_rowid ? Number(last_insert_rowid) : null,
-  }
+  return { rows: decodeRows(cols, rows), lastInsertRowid: last_insert_rowid ? Number(last_insert_rowid) : null }
+}
+
+/** Send multiple SQL statements in ONE HTTP round-trip. Errors per-statement are silently ignored (safe for IF NOT EXISTS / ALTER TABLE). */
+async function sqlBatch(statements: string[]): Promise<void> {
+  if (statements.length === 0) return
+  const body = { requests: statements.map(s => ({ type: 'execute', stmt: { sql: s, args: [] } })) }
+  const res = await fetch(`${TURSO_URL()}/v2/pipeline`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${TURSO_TOKEN()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`Turso batch HTTP ${res.status}: ${await res.text()}`)
+  // Individual statement errors (e.g. ALTER TABLE column already exists) are intentionally ignored
 }
 
 export function resetDb(): void { /* no-op for Turso */ }
@@ -53,118 +60,127 @@ export function getDb() { return { execute: sql } }
 export async function rawSql(query: string, args: SqlValue[] = []) { return sql(query, args) }
 
 async function initSchema() {
-  await sql(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'admin',
-    created_at TEXT DEFAULT (datetime('now'))
-  )`)
-  await sql(`CREATE TABLE IF NOT EXISTS locations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`)
-  await sql(`CREATE TABLE IF NOT EXISTS assets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    asset_tag TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    type TEXT NOT NULL,
-    model TEXT,
-    serial_number TEXT,
-    status TEXT NOT NULL DEFAULT 'available',
-    location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
-    notes TEXT,
-    purchase_date TEXT,
-    warranty_expiry TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  )`)
-  await sql(`CREATE TABLE IF NOT EXISTS allocations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-    allocated_to TEXT NOT NULL,
-    allocated_to_role TEXT,
-    allocated_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
-    purpose TEXT,
-    is_temporary INTEGER NOT NULL DEFAULT 0,
-    allocated_at TEXT DEFAULT (datetime('now')),
-    expected_return TEXT,
-    returned_at TEXT,
-    notes TEXT
-  )`)
-  await sql(`CREATE TABLE IF NOT EXISTS requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-    request_type TEXT NOT NULL,
-    priority TEXT NOT NULL DEFAULT 'medium',
-    requester_name TEXT NOT NULL,
-    requester_email TEXT,
-    requester_phone TEXT,
-    requester_class TEXT,
-    from_location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
-    to_location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
-    reason TEXT,
-    duration TEXT,
-    status TEXT NOT NULL DEFAULT 'pending',
-    handled_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    handled_at TEXT,
-    handler_notes TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`)
-  try { await sql(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
-  try { await sql(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
-  // Unified per-asset event log
-  await sql(`CREATE TABLE IF NOT EXISTS asset_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-    event_type TEXT NOT NULL,
-    actor_name TEXT,
-    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    detail TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`)
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_asset_logs_asset ON asset_logs(asset_id)`) } catch {}
-  // System-wide activity log
-  await sql(`CREATE TABLE IF NOT EXISTS activity_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    user_name TEXT NOT NULL,
-    action TEXT NOT NULL,
-    detail TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`)
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id)`) } catch {}
-  // Asset sets
-  await sql(`CREATE TABLE IF NOT EXISTS asset_sets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    responsible_teacher TEXT,
-    location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`)
-  try { await sql(`ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`) } catch {}
-  // Indexes for common lookups
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_alloc_asset ON allocations(asset_id)`) } catch {}
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_alloc_returned ON allocations(returned_at)`) } catch {}
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_alloc_active ON allocations(asset_id, returned_at)`) } catch {}
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_assets_tag ON assets(asset_tag)`) } catch {}
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type)`) } catch {}
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)`) } catch {}
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_requests_asset ON requests(asset_id)`) } catch {}
-  try { await sql(`CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)`) } catch {}
-  await sql(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token TEXT UNIQUE NOT NULL,
-    expires_at TEXT NOT NULL,
-    used INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`)
+  // ── Batch 1: Create all tables (one HTTP call) ────────────────────────────
+  await sqlBatch([
+    `CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'admin',
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_tag TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      model TEXT,
+      serial_number TEXT,
+      status TEXT NOT NULL DEFAULT 'available',
+      location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+      notes TEXT,
+      purchase_date TEXT,
+      warranty_expiry TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS allocations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      allocated_to TEXT NOT NULL,
+      allocated_to_role TEXT,
+      allocated_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+      purpose TEXT,
+      is_temporary INTEGER NOT NULL DEFAULT 0,
+      allocated_at TEXT DEFAULT (datetime('now')),
+      expected_return TEXT,
+      returned_at TEXT,
+      notes TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      request_type TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'medium',
+      requester_name TEXT NOT NULL,
+      requester_email TEXT,
+      requester_phone TEXT,
+      requester_class TEXT,
+      from_location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+      to_location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+      reason TEXT,
+      duration TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      handled_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      handled_at TEXT,
+      handler_notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS asset_sets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      responsible_teacher TEXT,
+      location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS asset_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      actor_name TEXT,
+      actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      detail TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS activity_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      user_name TEXT NOT NULL,
+      action TEXT NOT NULL,
+      detail TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT UNIQUE NOT NULL,
+      expires_at TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
+  ])
+
+  // ── Batch 2: Migrations — errors expected if columns already exist ─────────
+  await sqlBatch([
+    `ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`,
+    `ALTER TABLE requests ADD COLUMN requester_phone TEXT`,
+    `ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`,
+  ])
+
+  // ── Batch 3: Indexes (one HTTP call) ─────────────────────────────────────
+  await sqlBatch([
+    `CREATE INDEX IF NOT EXISTS idx_alloc_asset      ON allocations(asset_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_alloc_returned   ON allocations(returned_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_alloc_active     ON allocations(asset_id, returned_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_alloc_at         ON allocations(allocated_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_assets_tag       ON assets(asset_tag)`,
+    `CREATE INDEX IF NOT EXISTS idx_assets_status    ON assets(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_assets_type      ON assets(type)`,
+    `CREATE INDEX IF NOT EXISTS idx_requests_asset   ON requests(asset_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_requests_status  ON requests(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_requests_at      ON requests(created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_asset_logs_asset ON asset_logs(asset_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_activity_user    ON activity_logs(user_id)`,
+  ])
 }
 
 // Store promise so db methods can await it — ensures migration runs before queries
