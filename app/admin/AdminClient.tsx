@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent, useRef } from 'react'
 
 interface Location { id: number; name: string; description: string | null }
 interface User { id: number; name: string; email: string; role: string; created_at: string }
+interface ActivityLog { id: number; user_id: number | null; user_name: string; action: string; detail: string | null; created_at: string }
 
 interface Props { isSuperAdmin: boolean }
 
@@ -22,6 +23,7 @@ function roleBadge(role: string) {
 export default function AdminPage({ isSuperAdmin }: Props) {
   const [locations, setLocations] = useState<Location[]>([])
   const [users, setUsers] = useState<User[]>([])
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
   const [locForm, setLocForm] = useState({ name: '', description: '' })
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'teacher' })
   const [editingLoc, setEditingLoc] = useState<{ id: number; name: string; description: string } | null>(null)
@@ -40,6 +42,7 @@ export default function AdminPage({ isSuperAdmin }: Props) {
   useEffect(() => {
     fetch('/api/locations').then(r => r.json()).then(setLocations)
     fetch('/api/users').then(r => r.json()).then(d => { if (Array.isArray(d)) setUsers(d) })
+    fetch('/api/activity-logs').then(r => r.json()).then(d => { if (Array.isArray(d)) setActivityLogs(d) })
   }, [])
 
   async function addLocation(e: FormEvent) {
@@ -420,6 +423,68 @@ export default function AdminPage({ isSuperAdmin }: Props) {
             </button>
           </div>
         )}
+
+        {/* Activity Log */}
+        <div className="card p-6">
+          <h2 className="font-semibold text-gray-900 text-lg mb-4">Activity Log</h2>
+          <p className="text-sm text-gray-500 mb-4">Recent logins and actions across the system (last 200 entries).</p>
+          {activityLogs.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No activity recorded yet. Logs will appear here after users sign in and perform actions.</p>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">User</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Action</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide hidden sm:table-cell">Detail</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">When</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {activityLogs.map(log => {
+                    const actionLabel: Record<string, string> = {
+                      login: 'Login',
+                      create_asset: 'Asset registered',
+                      allocate: 'Allocated',
+                      return: 'Returned',
+                      request_approved: 'Request approved',
+                      request_rejected: 'Request rejected',
+                      request_completed: 'Request completed',
+                      status_changed: 'Status changed',
+                    }
+                    const actionBadge: Record<string, string> = {
+                      login: 'bg-blue-100 text-blue-700',
+                      create_asset: 'bg-purple-100 text-purple-700',
+                      allocate: 'bg-indigo-100 text-indigo-700',
+                      return: 'bg-green-100 text-green-700',
+                      request_approved: 'bg-green-100 text-green-700',
+                      request_rejected: 'bg-red-100 text-red-700',
+                      request_completed: 'bg-teal-100 text-teal-700',
+                      status_changed: 'bg-amber-100 text-amber-700',
+                    }
+                    const label = actionLabel[log.action] ?? log.action
+                    const badge = actionBadge[log.action] ?? 'bg-gray-100 text-gray-600'
+                    const when = new Date(log.created_at).toLocaleString('en-GB', {
+                      day: 'numeric', month: 'short', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    })
+                    return (
+                      <tr key={log.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-medium text-gray-900 whitespace-nowrap">{log.user_name}</td>
+                        <td className="px-4 py-2">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badge}`}>{label}</span>
+                        </td>
+                        <td className="px-4 py-2 text-gray-500 hidden sm:table-cell max-w-xs truncate">{log.detail ?? '—'}</td>
+                        <td className="px-4 py-2 text-gray-400 text-xs whitespace-nowrap">{when}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         {/* Database Backup & Restore */}
         <div className="card p-6 space-y-4">

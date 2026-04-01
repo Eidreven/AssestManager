@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
       duration,
     })
 
+    const auth = getAuthFromCookies()
+    const typeLabel = request_type === 'borrow' ? 'Borrow' : request_type === 'issue' ? 'Fault report' : 'Relocation'
+    db.logAssetEvent(Number(asset_id), 'request_created', requester_name, auth?.userId ?? null,
+      `${typeLabel} requested by ${requester_name}${requester_class ? ` (${requester_class})` : ''}${reason ? ` — "${reason}"` : ''}`).catch(() => {})
+
     // Await emails so Vercel doesn't kill the function before they send
     try {
       await sendNewRequestNotification({

@@ -117,6 +117,27 @@ async function initSchema() {
   )`)
   try { await sql(`ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`) } catch {}
   try { await sql(`ALTER TABLE requests ADD COLUMN requester_phone TEXT`) } catch {}
+  // Unified per-asset event log
+  await sql(`CREATE TABLE IF NOT EXISTS asset_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    actor_name TEXT,
+    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    detail TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`)
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_asset_logs_asset ON asset_logs(asset_id)`) } catch {}
+  // System-wide activity log
+  await sql(`CREATE TABLE IF NOT EXISTS activity_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    user_name TEXT NOT NULL,
+    action TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`)
+  try { await sql(`CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id)`) } catch {}
   // Asset sets
   await sql(`CREATE TABLE IF NOT EXISTS asset_sets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -251,6 +272,25 @@ export interface RequestWithDetails extends Request {
   from_location_name: string | null
   to_location_name: string | null
   handled_by_name: string | null
+}
+
+export interface AssetLog {
+  id: number
+  asset_id: number
+  event_type: string
+  actor_name: string | null
+  actor_id: number | null
+  detail: string | null
+  created_at: string
+}
+
+export interface ActivityLog {
+  id: number
+  user_id: number | null
+  user_name: string
+  action: string
+  detail: string | null
+  created_at: string
 }
 
 // ─── Asset row mapping (eliminates N+1 allocation queries) ───────────────────
@@ -660,6 +700,30 @@ export const db = {
       UPDATE requests SET status = ?, handled_by_id = ?, handled_at = datetime('now'), handler_notes = ?
       WHERE id = ?
     `, [status, handledById ?? null, handlerNotes ?? null, id])
+  },
+
+  // Asset Logs
+  async logAssetEvent(assetId: number, eventType: string, actorName: string | null, actorId: number | null, detail: string | null): Promise<void> {
+    await schemaReady
+    await sql(`INSERT INTO asset_logs (asset_id, event_type, actor_name, actor_id, detail) VALUES (?, ?, ?, ?, ?)`,
+      [assetId, eventType, actorName, actorId, detail])
+  },
+  async getAssetLogs(assetId: number): Promise<AssetLog[]> {
+    await schemaReady
+    const r = await sql(`SELECT * FROM asset_logs WHERE asset_id = ? ORDER BY created_at DESC`, [assetId])
+    return r.rows as unknown as AssetLog[]
+  },
+
+  // Activity Logs
+  async logActivity(userId: number | null, userName: string, action: string, detail: string | null): Promise<void> {
+    await schemaReady
+    await sql(`INSERT INTO activity_logs (user_id, user_name, action, detail) VALUES (?, ?, ?, ?)`,
+      [userId, userName, action, detail])
+  },
+  async getRecentActivity(limit = 100): Promise<ActivityLog[]> {
+    await schemaReady
+    const r = await sql(`SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT ?`, [limit])
+    return r.rows as unknown as ActivityLog[]
   },
 
   // Stats

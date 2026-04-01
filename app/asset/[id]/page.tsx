@@ -6,7 +6,7 @@ import { getAuthFromCookies } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import AssetActions from './AssetActions'
-import AssetHistory from './AssetHistory'
+import AssetHistory, { type TimelineEntry } from './AssetHistory'
 
 export default async function AssetDetailPage({ params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()!
@@ -18,10 +18,59 @@ export default async function AssetDetailPage({ params }: { params: { id: string
   ])
   if (!asset) notFound()
 
-  const [history, requests] = await Promise.all([
+  const [history, requests, assetLogs] = await Promise.all([
     db.getAllocationHistory(asset.id),
     db.getRequestsByAsset(asset.id),
+    db.getAssetLogs(asset.id),
   ])
+
+  // Build unified timeline from allocations + asset_logs
+  const timeline: TimelineEntry[] = []
+
+  // Convert allocations → timeline entries
+  for (const a of history) {
+    timeline.push({
+      id: `alloc-${a.id}`,
+      type: 'allocated',
+      timestamp: a.allocated_at,
+      actorName: a.allocated_by_name ?? null,
+      summary: `Allocated to ${a.allocated_to}${a.allocated_to_role ? ` (${a.allocated_to_role})` : ''}`,
+      detail: [
+        a.location_name ? `Location: ${a.location_name}` : null,
+        a.purpose ?? null,
+        a.is_temporary ? 'Temporary allocation' : null,
+        a.expected_return ? `Expected return: ${new Date(a.expected_return).toLocaleDateString('en-GB')}` : null,
+      ].filter(Boolean).join(' · ') || null,
+    })
+    if (a.returned_at) {
+      timeline.push({
+        id: `return-${a.id}`,
+        type: 'returned',
+        timestamp: a.returned_at,
+        actorName: null,
+        summary: `Returned from ${a.allocated_to}`,
+      })
+    }
+  }
+
+  // Convert asset_logs → timeline entries
+  for (const log of assetLogs) {
+    const type = log.event_type as TimelineEntry['type']
+    // Skip if not a recognised type
+    if (!['registered','allocated','returned','request_created','request_approved','request_rejected','request_completed','status_changed','edited'].includes(type)) continue
+    // Skip allocation/return duplicates (already built from allocations table)
+    if (type === 'allocated' || type === 'returned') continue
+    timeline.push({
+      id: `log-${log.id}`,
+      type,
+      timestamp: log.created_at,
+      actorName: log.actor_name,
+      summary: log.detail ?? type,
+    })
+  }
+
+  // Sort newest first
+  timeline.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
   const alloc = asset.current_allocation
 
@@ -238,7 +287,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
         )}
 
         {/* History */}
-        <AssetHistory history={history} assetId={asset.id} />
+        <AssetHistory timeline={timeline} />
 
         {/* Admin edit link */}
         {(auth.role === 'admin' || auth.role === 'superadmin') && (

@@ -19,6 +19,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (asset.current_allocation) {
     await db.returnAllocation(asset.current_allocation.id, assetId)
+    db.logAssetEvent(assetId, 'returned', auth.name, auth.userId,
+      `Returned from ${asset.current_allocation.allocated_to}`).catch(() => {})
   }
 
   // Link to class set if provided
@@ -58,6 +60,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     })
   } catch (err) { console.error('Allocation email error:', err) }
 
+  const roleLabel = allocated_to_role ? ` (${allocated_to_role})` : ''
+  db.logAssetEvent(assetId, 'allocated', auth.name, auth.userId,
+    `Allocated to ${allocated_to}${roleLabel}${purpose ? ` — ${purpose}` : ''}${is_temporary ? ' [Temporary]' : ''}`).catch(() => {})
+  db.logActivity(auth.userId, auth.name, 'allocate',
+    `Allocated ${asset.asset_tag} to ${allocated_to}`).catch(() => {})
+
   return NextResponse.json({ id }, { status: 201 })
 }
 
@@ -77,6 +85,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   await db.returnAllocation(asset.current_allocation.id, assetId)
   // Remove from class set on return
   if (asset.set_id) await db.removeAssetFromSet(assetId)
+
+  db.logAssetEvent(assetId, 'returned', auth.name, auth.userId,
+    `Returned from ${returnedFrom}`).catch(() => {})
+  db.logActivity(auth.userId, auth.name, 'return',
+    `Returned ${asset.asset_tag} from ${returnedFrom}`).catch(() => {})
 
   try {
     await sendReturnNotification({
