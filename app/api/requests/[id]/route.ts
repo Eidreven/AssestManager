@@ -24,12 +24,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   // Log the action on the asset
   if (request) {
-    const eventType = `request_${status}` // request_approved / request_rejected / request_completed
+    const eventType = `request_${status}`
     const typeLabel = request.request_type === 'borrow' ? 'Borrow' : request.request_type === 'issue' ? 'Fault' : 'Relocation'
-    db.logAssetEvent(request.asset_id, eventType, auth.name, auth.userId,
-      `${typeLabel} request #${requestId} by ${request.requester_name} ${status}${handler_notes ? ` — "${handler_notes}"` : ''}`).catch(() => {})
-    db.logActivity(auth.userId, auth.name, eventType,
-      `${status} request #${requestId} for ${request.asset_tag ?? 'asset'}`).catch(() => {})
+    try {
+      await Promise.all([
+        db.logAssetEvent(request.asset_id, eventType, auth.name, auth.userId,
+          `${typeLabel} request #${requestId} by ${request.requester_name} ${status}${handler_notes ? ` — "${handler_notes}"` : ''}`),
+        db.logActivity(auth.userId, auth.name, eventType,
+          `${status} request #${requestId} for ${request.asset_tag ?? 'asset'}`),
+      ])
+    } catch {}
   }
 
   // Email requester if they provided an email

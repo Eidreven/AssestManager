@@ -31,15 +31,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const asset = await db.getAssetById(id)
 
   // Log status change if the status field was updated
-  if ('status' in update && before && before.status !== update.status) {
-    db.logAssetEvent(id, 'status_changed', auth.name, auth.userId,
-      `Status changed from ${before.status} to ${update.status}`).catch(() => {})
-    db.logActivity(auth.userId, auth.name, 'status_changed',
-      `${asset?.asset_tag} status: ${before.status} → ${update.status}`).catch(() => {})
-  } else if (Object.keys(update).length > 0) {
-    db.logAssetEvent(id, 'edited', auth.name, auth.userId,
-      `Asset details updated`).catch(() => {})
-  }
+  try {
+    if ('status' in update && before && before.status !== update.status) {
+      await Promise.all([
+        db.logAssetEvent(id, 'status_changed', auth.name, auth.userId,
+          `Status changed from ${before.status} to ${update.status}`),
+        db.logActivity(auth.userId, auth.name, 'status_changed',
+          `${asset?.asset_tag} status: ${before.status} → ${update.status}`),
+      ])
+    } else if (Object.keys(update).length > 0) {
+      await db.logAssetEvent(id, 'edited', auth.name, auth.userId, `Asset details updated`)
+    }
+  } catch {}
 
   return NextResponse.json(asset)
 }

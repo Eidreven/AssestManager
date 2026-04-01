@@ -19,14 +19,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (asset.current_allocation) {
     await db.returnAllocation(asset.current_allocation.id, assetId)
-    db.logAssetEvent(assetId, 'returned', auth.name, auth.userId,
-      `Returned from ${asset.current_allocation.allocated_to}`).catch(() => {})
+    try { await db.logAssetEvent(assetId, 'returned', auth.name, auth.userId, `Returned from ${asset.current_allocation.allocated_to}`) } catch {}
   }
 
-  // Link to class set if provided
-  if (set_id) {
-    await db.addAssetToSet(assetId, Number(set_id))
-  }
+  if (set_id) await db.addAssetToSet(assetId, Number(set_id))
 
   const id = await db.createAllocation({
     asset_id: assetId,
@@ -40,10 +36,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     notes,
   })
 
-  // Get location name for the email
+  const roleLabel = allocated_to_role ? ` (${allocated_to_role})` : ''
+  try {
+    await Promise.all([
+      db.logAssetEvent(assetId, 'allocated', auth.name, auth.userId,
+        `Allocated to ${allocated_to}${roleLabel}${purpose ? ` — ${purpose}` : ''}${is_temporary ? ' [Temporary]' : ''}`),
+      db.logActivity(auth.userId, auth.name, 'allocate', `Allocated ${asset.asset_tag} to ${allocated_to}`),
+    ])
+  } catch {}
+
+  // Email notification (best effort — after logs)
   const locations = location_id ? await db.getAllLocations() : []
   const locationName = locations.find(l => l.id === Number(location_id))?.name ?? null
-
   try {
     await sendAllocationNotification({
       assetTag: asset.asset_tag,
@@ -59,12 +63,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       notes: notes ?? null,
     })
   } catch (err) { console.error('Allocation email error:', err) }
-
-  const roleLabel = allocated_to_role ? ` (${allocated_to_role})` : ''
-  db.logAssetEvent(assetId, 'allocated', auth.name, auth.userId,
-    `Allocated to ${allocated_to}${roleLabel}${purpose ? ` — ${purpose}` : ''}${is_temporary ? ' [Temporary]' : ''}`).catch(() => {})
-  db.logActivity(auth.userId, auth.name, 'allocate',
-    `Allocated ${asset.asset_tag} to ${allocated_to}`).catch(() => {})
 
   return NextResponse.json({ id }, { status: 201 })
 }
@@ -83,13 +81,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const returnedFrom = asset.current_allocation.allocated_to
 
   await db.returnAllocation(asset.current_allocation.id, assetId)
-  // Remove from class set on return
   if (asset.set_id) await db.removeAssetFromSet(assetId)
 
-  db.logAssetEvent(assetId, 'returned', auth.name, auth.userId,
-    `Returned from ${returnedFrom}`).catch(() => {})
-  db.logActivity(auth.userId, auth.name, 'return',
-    `Returned ${asset.asset_tag} from ${returnedFrom}`).catch(() => {})
+  try {
+    await Promise.all([
+      db.logAssetEvent(assetId, 'returned', auth.name, auth.userId, `Returned from ${returnedFrom}`),
+      db.logActivity(auth.userId, auth.name, 'return', `Returned ${asset.asset_tag} from ${returnedFrom}`),
+    ])
+  } catch {}
 
   try {
     await sendReturnNotification({

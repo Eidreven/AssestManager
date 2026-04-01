@@ -29,6 +29,7 @@ const NAV_LINKS = [
   {
     href: '/logs',
     label: 'Logs',
+    adminOnly: true,
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

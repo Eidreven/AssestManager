@@ -10,19 +10,19 @@ import AssetHistory, { type TimelineEntry } from './AssetHistory'
 
 export default async function AssetDetailPage({ params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()!
-  const [asset, locations, teachers, sets] = await Promise.all([
-    db.getAssetById(Number(params.id)),
+  const assetId = Number(params.id)
+
+  // Fetch everything in parallel — asset id is known from params
+  const [asset, locations, teachers, sets, history, requests, assetLogs] = await Promise.all([
+    db.getAssetById(assetId),
     db.getAllLocations(),
     db.getTeachers(),
     db.getAllSets(),
+    db.getAllocationHistory(assetId),
+    db.getRequestsByAsset(assetId),
+    db.getAssetLogs(assetId),
   ])
   if (!asset) notFound()
-
-  const [history, requests, assetLogs] = await Promise.all([
-    db.getAllocationHistory(asset.id),
-    db.getRequestsByAsset(asset.id),
-    db.getAssetLogs(asset.id),
-  ])
 
   // Build unified timeline from allocations + asset_logs
   const timeline: TimelineEntry[] = []

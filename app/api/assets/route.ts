@@ -38,7 +38,11 @@ export async function POST(req: NextRequest) {
   })
 
   const asset = await db.getAssetById(id)
-  db.logAssetEvent(id, 'registered', auth.name, auth.userId, `Registered as ${asset?.asset_tag} (${type})`).catch(() => {})
-  db.logActivity(auth.userId, auth.name, 'create_asset', `Registered ${asset?.asset_tag} — ${name}`).catch(() => {})
+  try {
+    await Promise.all([
+      db.logAssetEvent(id, 'registered', auth.name, auth.userId, `Registered as ${asset?.asset_tag} (${type})`),
+      db.logActivity(auth.userId, auth.name, 'create_asset', `Registered ${asset?.asset_tag} — ${name}`),
+    ])
+  } catch {}
   return NextResponse.json(asset, { status: 201 })
 }

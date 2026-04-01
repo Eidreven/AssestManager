@@ -720,10 +720,26 @@ export const db = {
     await sql(`INSERT INTO activity_logs (user_id, user_name, action, detail) VALUES (?, ?, ?, ?)`,
       [userId, userName, action, detail])
   },
-  async getRecentActivity(limit = 100): Promise<ActivityLog[]> {
+  async getRecentActivity(limit = 200): Promise<ActivityLog[]> {
     await schemaReady
     const r = await sql(`SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT ?`, [limit])
     return r.rows as unknown as ActivityLog[]
+  },
+  async getActivityLogsOlderThan(days: number): Promise<ActivityLog[]> {
+    await schemaReady
+    const r = await sql(
+      `SELECT * FROM activity_logs WHERE created_at < datetime('now', ?) ORDER BY created_at ASC`,
+      [`-${days} days`]
+    )
+    return r.rows as unknown as ActivityLog[]
+  },
+  async purgeActivityLogsOlderThan(days: number): Promise<number> {
+    await schemaReady
+    const r = await sql(
+      `DELETE FROM activity_logs WHERE created_at < datetime('now', ?)`,
+      [`-${days} days`]
+    )
+    return r.rows.length
   },
 
   // Stats
