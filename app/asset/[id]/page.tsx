@@ -47,7 +47,8 @@ export default async function AssetDetailPage({ params }: { params: { id: string
         type: 'returned',
         timestamp: a.returned_at,
         actorName: null,
-        summary: `Returned from ${a.allocated_to}`,
+        summary: `Returned by ${a.allocated_to} — device now available`,
+        detail: a.allocated_to_role ? `Was allocated to ${a.allocated_to_role}` : null,
       })
     }
   }
@@ -77,6 +78,16 @@ export default async function AssetDetailPage({ params }: { params: { id: string
       })
     }
   }
+
+  // Add "Asset registered" as the oldest entry
+  timeline.push({
+    id: 'registered',
+    type: 'registered',
+    timestamp: asset.created_at,
+    actorName: asset.created_by_name ?? null,
+    summary: 'Asset registered into the system',
+    detail: asset.created_by_name ? `Added by ${asset.created_by_name}` : null,
+  })
 
   // Sort newest first
   timeline.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())

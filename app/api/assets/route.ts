@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     notes,
     purchase_date,
     warranty_expiry,
+    created_by_id: auth.userId,
   })
 
   const asset = await db.getAssetById(id)

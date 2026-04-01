@@ -164,6 +164,7 @@ async function initSchema() {
     `ALTER TABLE requests ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'`,
     `ALTER TABLE requests ADD COLUMN requester_phone TEXT`,
     `ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`,
+    `ALTER TABLE assets ADD COLUMN created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
   ])
 
   // ── Batch 3: Indexes (one HTTP call) ─────────────────────────────────────
@@ -225,6 +226,7 @@ export interface Asset {
   status: 'available' | 'allocated' | 'maintenance' | 'retired'
   location_id: number | null
   set_id: number | null
+  created_by_id: number | null
   notes: string | null
   purchase_date: string | null
   warranty_expiry: string | null
@@ -235,6 +237,7 @@ export interface Asset {
 export interface AssetWithDetails extends Asset {
   location_name: string | null
   set_name: string | null
+  created_by_name: string | null
   current_allocation: AllocationWithDetails | null
 }
 
@@ -314,6 +317,7 @@ export interface ActivityLog {
 interface RawAssetRow extends Asset {
   location_name: string | null
   set_name: string | null
+  created_by_name: string | null
   al_id: number | null
   allocated_to: string | null
   allocated_to_role: string | null
@@ -333,10 +337,10 @@ function mapAssetRow(row: RawAssetRow): AssetWithDetails {
   return {
     id: row.id, asset_tag: row.asset_tag, name: row.name, type: row.type,
     model: row.model, serial_number: row.serial_number, status: row.status,
-    location_id: row.location_id, set_id: row.set_id, notes: row.notes,
-    purchase_date: row.purchase_date, warranty_expiry: row.warranty_expiry,
+    location_id: row.location_id, set_id: row.set_id, created_by_id: row.created_by_id,
+    notes: row.notes, purchase_date: row.purchase_date, warranty_expiry: row.warranty_expiry,
     created_at: row.created_at, updated_at: row.updated_at,
-    location_name: row.location_name, set_name: row.set_name,
+    location_name: row.location_name, set_name: row.set_name, created_by_name: row.created_by_name,
     current_allocation: row.al_id ? {
       id: row.al_id,
       asset_id: row.id,
@@ -461,6 +465,7 @@ export const db = {
   async getAssetsInSet(setId: number): Promise<AssetWithDetails[]> {
     const r = await sql(`
       SELECT a.*, l.name AS location_name, s.name AS set_name,
+             creator.name AS created_by_name,
              al.id AS al_id, al.allocated_to, al.allocated_to_role,
              al.allocated_by_id, al.location_id AS al_location_id,
              al.purpose, al.is_temporary, al.allocated_at,
@@ -469,6 +474,7 @@ export const db = {
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
       LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN users creator ON a.created_by_id = creator.id
       LEFT JOIN allocations al ON al.asset_id = a.id AND al.returned_at IS NULL
         AND al.id = (SELECT id FROM allocations WHERE asset_id = a.id AND returned_at IS NULL ORDER BY allocated_at DESC LIMIT 1)
       LEFT JOIN users u ON al.allocated_by_id = u.id
@@ -490,6 +496,7 @@ export const db = {
     await schemaReady
     const r = await sql(`
       SELECT a.*, l.name AS location_name, s.name AS set_name,
+             creator.name AS created_by_name,
              al.id AS al_id, al.allocated_to, al.allocated_to_role,
              al.allocated_by_id, al.location_id AS al_location_id,
              al.purpose, al.is_temporary, al.allocated_at,
@@ -498,6 +505,7 @@ export const db = {
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
       LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN users creator ON a.created_by_id = creator.id
       LEFT JOIN allocations al ON al.asset_id = a.id AND al.returned_at IS NULL
         AND al.id = (SELECT id FROM allocations WHERE asset_id = a.id AND returned_at IS NULL ORDER BY allocated_at DESC LIMIT 1)
       LEFT JOIN users u ON al.allocated_by_id = u.id
@@ -511,6 +519,7 @@ export const db = {
     await schemaReady
     const r = await sql(`
       SELECT a.*, l.name AS location_name, s.name AS set_name,
+             creator.name AS created_by_name,
              al.id AS al_id, al.allocated_to, al.allocated_to_role,
              al.allocated_by_id, al.location_id AS al_location_id,
              al.purpose, al.is_temporary, al.allocated_at,
@@ -519,6 +528,7 @@ export const db = {
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
       LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN users creator ON a.created_by_id = creator.id
       LEFT JOIN allocations al ON al.asset_id = a.id AND al.returned_at IS NULL
         AND al.id = (SELECT id FROM allocations WHERE asset_id = a.id AND returned_at IS NULL ORDER BY allocated_at DESC LIMIT 1)
       LEFT JOIN users u ON al.allocated_by_id = u.id
@@ -532,6 +542,7 @@ export const db = {
     await schemaReady
     const r = await sql(`
       SELECT a.*, l.name AS location_name, s.name AS set_name,
+             creator.name AS created_by_name,
              al.id AS al_id, al.allocated_to, al.allocated_to_role,
              al.allocated_by_id, al.location_id AS al_location_id,
              al.purpose, al.is_temporary, al.allocated_at,
@@ -540,6 +551,7 @@ export const db = {
       FROM assets a
       LEFT JOIN locations l ON a.location_id = l.id
       LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN users creator ON a.created_by_id = creator.id
       LEFT JOIN allocations al ON al.asset_id = a.id AND al.returned_at IS NULL
         AND al.id = (SELECT id FROM allocations WHERE asset_id = a.id AND returned_at IS NULL ORDER BY allocated_at DESC LIMIT 1)
       LEFT JOIN users u ON al.allocated_by_id = u.id
@@ -552,13 +564,14 @@ export const db = {
   async createAsset(data: {
     asset_tag: string; name: string; type: string; model?: string
     serial_number?: string; location_id?: number; notes?: string
-    purchase_date?: string; warranty_expiry?: string
+    purchase_date?: string; warranty_expiry?: string; created_by_id?: number
   }): Promise<number> {
     const r = await sql(`
-      INSERT INTO assets (asset_tag, name, type, model, serial_number, location_id, notes, purchase_date, warranty_expiry)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO assets (asset_tag, name, type, model, serial_number, location_id, notes, purchase_date, warranty_expiry, created_by_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [data.asset_tag, data.name, data.type, data.model ?? null, data.serial_number ?? null,
-        data.location_id ?? null, data.notes ?? null, data.purchase_date ?? null, data.warranty_expiry ?? null])
+        data.location_id ?? null, data.notes ?? null, data.purchase_date ?? null, data.warranty_expiry ?? null,
+        data.created_by_id ?? null])
     return r.lastInsertRowid!
   },
 
