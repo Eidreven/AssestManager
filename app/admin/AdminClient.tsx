@@ -368,7 +368,7 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                               </span>
                             </td>
                             <td className="px-4 py-2 text-gray-400 text-xs">
-                              {new Date(u.created_at).toLocaleDateString('en-GB')}
+                              {new Date(u.created_at).toLocaleDateString('en-GB', { timeZone: 'Australia/Darwin' })}
                             </td>
                             <td className="px-4 py-2 flex gap-3">
                               {canEdit && (

@@ -143,7 +143,7 @@ export default async function DashboardPage() {
                       </td>
                       <td className="py-2.5 pr-4 text-gray-700">{a.allocated_to}</td>
                       <td className="py-2.5 pr-4 text-gray-500">
-                        {new Date(a.allocated_at).toLocaleDateString('en-GB')}
+                        {new Date(a.allocated_at).toLocaleDateString('en-GB', { timeZone: 'Australia/Darwin' })}
                       </td>
                       <td className="py-2.5">
                         {a.returned_at

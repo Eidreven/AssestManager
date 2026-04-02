@@ -79,7 +79,7 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
   }
 
   function formatDate(s: string) {
-    return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Darwin' })
   }
 
   const filtered = tab === 'all' ? requests : requests.filter(r => r.status === tab)

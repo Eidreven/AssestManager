@@ -11,12 +11,12 @@ interface Props {
 
 function formatDate(s: string | null) {
   if (!s) return '—'
-  return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Darwin' })
 }
 function formatDateTime(s: string | null) {
   if (!s) return '—'
   return new Date(s).toLocaleString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Darwin',
   })
 }
 
@@ -29,7 +29,7 @@ export default function LogsClient({ allocations, requests }: Props) {
   function downloadLog() {
     const lines: string[] = [
       'MPS Asset Manager — Full Log Export',
-      `Exported: ${new Date().toLocaleString('en-GB')}`,
+      `Exported: ${new Date().toLocaleString('en-GB', { timeZone: 'Australia/Darwin' })}`,
       '='.repeat(70),
       '',
       '── ALLOCATIONS ─────────────────────────────────────────────────────────',

@@ -27,6 +27,7 @@ function formatDate(s: string) {
   return new Date(s).toLocaleString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
+    timeZone: 'Australia/Darwin',
   })
 }
 

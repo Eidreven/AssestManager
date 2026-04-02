@@ -39,7 +39,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
         a.location_name ? `Location: ${a.location_name}` : null,
         a.purpose ?? null,
         a.is_temporary ? 'Temporary allocation' : null,
-        a.expected_return ? `Expected return: ${new Date(a.expected_return).toLocaleDateString('en-GB')}` : null,
+        a.expected_return ? `Expected return: ${new Date(a.expected_return).toLocaleDateString('en-GB', { timeZone: 'Australia/Darwin' })}` : null,
       ].filter(Boolean).join(' · ') || null,
     })
     if (a.returned_at) {
@@ -108,7 +108,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
 
   function formatDate(s: string | null | undefined) {
     if (!s) return null
-    return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Darwin' })
   }
 
   const STATUS_COLORS: Record<string, string> = {
