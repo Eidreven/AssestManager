@@ -22,9 +22,18 @@ function formatDateTime(s: string | null) {
 
 export default function LogsClient({ allocations, requests }: Props) {
   const [tab, setTab] = useState<'allocations' | 'requests'>('allocations')
+  const [typeFilter, setTypeFilter] = useState<string>('')
 
-  const active = allocations.filter(a => !a.returned_at)
-  const returned = allocations.filter(a => a.returned_at)
+  const allTypes = [...new Set([
+    ...allocations.map(a => a.asset_type),
+    ...requests.map(r => r.asset_type),
+  ].filter(Boolean))].sort() as string[]
+
+  const filteredAllocations = typeFilter ? allocations.filter(a => a.asset_type === typeFilter) : allocations
+  const filteredRequests = typeFilter ? requests.filter(r => r.asset_type === typeFilter) : requests
+
+  const active = filteredAllocations.filter(a => !a.returned_at)
+  const returned = filteredAllocations.filter(a => a.returned_at)
 
   function downloadLog() {
     const lines: string[] = [
@@ -67,21 +76,33 @@ export default function LogsClient({ allocations, requests }: Props) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Logs</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            {active.length} active allocations · {returned.length} returned · {requests.length} requests
+            {active.length} active allocations · {returned.length} returned · {filteredRequests.length} requests
           </p>
         </div>
-        <button onClick={downloadLog} className="btn-secondary flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-3">
+          {allTypes.length > 0 && (
+            <select
+              className="input w-auto"
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+            >
+              <option value="">All Device Types</option>
+              {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+          <button onClick={downloadLog} className="btn-secondary flex items-center gap-2 text-sm">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           Download Full Log
         </button>
+        </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-        {([['allocations', `Allocations (${allocations.length})`], ['requests', `Requests (${requests.length})`]] as const).map(([key, label]) => (
+        {([['allocations', `Allocations (${filteredAllocations.length})`], ['requests', `Requests (${filteredRequests.length})`]] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -181,7 +202,7 @@ export default function LogsClient({ allocations, requests }: Props) {
 
       {tab === 'requests' && (
         <div className="card overflow-hidden">
-          {requests.length === 0 ? (
+          {filteredRequests.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-sm">No requests yet.</div>
           ) : (
             <div className="overflow-x-auto">
@@ -198,7 +219,7 @@ export default function LogsClient({ allocations, requests }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {requests.map(r => {
+                  {filteredRequests.map(r => {
                     const statusBadge: Record<string, string> = {
                       pending: 'bg-yellow-100 text-yellow-700',
                       approved: 'bg-green-100 text-green-700',

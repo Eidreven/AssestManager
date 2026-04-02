@@ -44,6 +44,7 @@ const STATUS_TABS = ['all', 'pending', 'approved', 'rejected', 'completed']
 export default function RequestsPage({ canManage = false }: { canManage?: boolean }) {
   const [requests, setRequests] = useState<Request[]>([])
   const [tab, setTab] = useState<string>('pending')
+  const [typeFilter, setTypeFilter] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
   const [actionLoading, setActionLoading] = useState<number | null>(null)
@@ -82,14 +83,28 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
     return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Darwin' })
   }
 
-  const filtered = tab === 'all' ? requests : requests.filter(r => r.status === tab)
+  const deviceTypes = [...new Set(requests.map(r => r.asset_type).filter(Boolean))].sort() as string[]
+  const byType = typeFilter ? requests.filter(r => r.asset_type === typeFilter) : requests
+  const filtered = tab === 'all' ? byType : byType.filter(r => r.status === tab)
   const counts: Record<string, number> = {}
-  STATUS_TABS.forEach(s => { counts[s] = s === 'all' ? requests.length : requests.filter(r => r.status === s).length })
+  STATUS_TABS.forEach(s => { counts[s] = s === 'all' ? byType.length : byType.filter(r => r.status === s).length })
 
   return (
     <div>
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Requests</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Requests</h1>
+          {deviceTypes.length > 0 && (
+            <select
+              className="input w-auto"
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+            >
+              <option value="">All Device Types</option>
+              {deviceTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+        </div>
 
         {/* Tabs */}
         <div className="flex gap-2 flex-wrap">

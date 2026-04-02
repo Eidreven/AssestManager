@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { getAuthFromCookies } from '@/lib/auth'
 import Link from 'next/link'
 import TeacherFilter from './TeacherFilter'
+import TypeFilter from './TypeFilter'
 
 const STATUS_LABELS: Record<string, string> = {
   available: 'Available',
@@ -16,7 +17,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; q?: string; teacher?: string }
+  searchParams?: { status?: string; q?: string; teacher?: string; type?: string }
 }) {
   const auth = getAuthFromCookies()!
   const [allAssets, teachers] = await Promise.all([
@@ -25,8 +26,10 @@ export default async function AssetsPage({
   ])
 
   const q = searchParams?.q?.toLowerCase()
+  const deviceTypes = [...new Set(allAssets.map(a => a.type))].sort()
   const assets = allAssets.filter(a => {
     if (searchParams?.status && a.status !== searchParams.status) return false
+    if (searchParams?.type && a.type !== searchParams.type) return false
     if (searchParams?.teacher && (
       a.current_allocation?.allocated_to !== searchParams.teacher ||
       a.current_allocation?.allocated_to_role !== 'Teacher'
@@ -71,6 +74,11 @@ export default async function AssetsPage({
               className="input"
             />
           </form>
+
+          {/* Type filter */}
+          {deviceTypes.length > 0 && (
+            <TypeFilter types={deviceTypes} current={searchParams?.type ?? ''} />
+          )}
 
           {/* Teacher filter */}
           {teachers.length > 0 && (
