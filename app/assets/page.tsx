@@ -26,7 +26,7 @@ export default async function AssetsPage({
   ])
 
   const q = searchParams?.q?.toLowerCase()
-  const deviceTypes = [...new Set(allAssets.map(a => a.type))].sort()
+  const deviceTypes = Array.from(new Set(allAssets.map(a => a.type))).sort()
   const assets = allAssets.filter(a => {
     if (searchParams?.status && a.status !== searchParams.status) return false
     if (searchParams?.type && a.type !== searchParams.type) return false

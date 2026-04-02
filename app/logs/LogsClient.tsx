@@ -24,10 +24,9 @@ export default function LogsClient({ allocations, requests }: Props) {
   const [tab, setTab] = useState<'allocations' | 'requests'>('allocations')
   const [typeFilter, setTypeFilter] = useState<string>('')
 
-  const allTypes = [...new Set([
-    ...allocations.map(a => a.asset_type),
-    ...requests.map(r => r.asset_type),
-  ].filter(Boolean))].sort() as string[]
+  const allTypes = Array.from(new Set(
+    [...allocations.map(a => a.asset_type), ...requests.map(r => r.asset_type)].filter(Boolean)
+  )).sort() as string[]
 
   const filteredAllocations = typeFilter ? allocations.filter(a => a.asset_type === typeFilter) : allocations
   const filteredRequests = typeFilter ? requests.filter(r => r.asset_type === typeFilter) : requests

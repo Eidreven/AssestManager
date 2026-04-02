@@ -83,7 +83,7 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
     return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Darwin' })
   }
 
-  const deviceTypes = [...new Set(requests.map(r => r.asset_type).filter(Boolean))].sort() as string[]
+  const deviceTypes = Array.from(new Set(requests.map(r => r.asset_type).filter(Boolean))).sort() as string[]
   const byType = typeFilter ? requests.filter(r => r.asset_type === typeFilter) : requests
   const filtered = tab === 'all' ? byType : byType.filter(r => r.status === tab)
   const counts: Record<string, number> = {}
