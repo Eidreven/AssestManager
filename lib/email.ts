@@ -246,32 +246,44 @@ export async function sendSetAllocatedToTeacher(params: {
   teacherEmail: string
   teacherName: string
   setName: string
-  deviceCount: number
+  devices: { assetTag: string; name: string; type: string }[]
   locationName?: string | null
   allocatedByName: string
   notes?: string | null
 }) {
-  const { teacherEmail, teacherName, setName, deviceCount, locationName, allocatedByName, notes } = params
+  const { teacherEmail, teacherName, setName, devices, locationName, allocatedByName, notes } = params
+  const deviceRows = devices.map(d =>
+    `<tr>
+      <td style="padding:5px 8px;font-family:monospace;color:#1e3a8a;font-size:13px;font-weight:600;">${d.assetTag}</td>
+      <td style="padding:5px 8px;color:#111827;font-size:13px;">${d.name}</td>
+      <td style="padding:5px 8px;color:#6b7280;font-size:13px;">${d.type}</td>
+    </tr>`
+  ).join('')
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${teacherName},</p>
     <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      The following class set has been allocated to you by <strong>${allocatedByName}</strong>.
+      The following class set (${devices.length} device${devices.length !== 1 ? 's' : ''}) has been allocated to you by <strong>${allocatedByName}</strong>.
     </p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
         <span style="font-weight:700;color:#1e3a8a;font-size:15px;">📦 ${setName}</span>
+        ${locationName ? `<span style="color:#6b7280;font-size:13px;margin-left:8px;">— ${locationName}</span>` : ''}
       </td></tr>
-      <tr><td style="padding:16px;">
-        <table cellpadding="0" cellspacing="0" width="100%">
-          ${row('Devices', `${deviceCount} device${deviceCount !== 1 ? 's' : ''}`)}
-          ${row('Location', locationName)}
-          ${notes ? row('Notes', notes) : ''}
+      <tr><td style="padding:0;">
+        <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+            <th style="padding:7px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Tag</th>
+            <th style="padding:7px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Device</th>
+            <th style="padding:7px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Type</th>
+          </tr>
+          ${deviceRows}
         </table>
       </td></tr>
+      ${notes ? `<tr><td style="padding:12px 16px;border-top:1px solid #e5e7eb;font-size:13px;color:#374151;"><strong>Notes:</strong> ${notes}</td></tr>` : ''}
     </table>
     <p style="margin:0;color:#6b7280;font-size:13px;">Please contact the IT team if you have any questions.</p>
   `
-  await sendMail(teacherEmail, `Class set allocated to you — ${setName}`, baseTemplate('Class Set Allocated to You', body))
+  await sendMail(teacherEmail, `Class set allocated to you — ${setName} (${devices.length} devices)`, baseTemplate('Class Set Allocated to You', body))
 }
 
 // ── 4. Notify admin when device is returned ───────────────────────────────────

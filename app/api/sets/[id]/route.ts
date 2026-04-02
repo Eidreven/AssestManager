@@ -32,11 +32,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       const teacherUser = await db.getUserByName(newTeacher)
       if (teacherUser?.email) {
         const set = await db.getSetById(id)
+        const setAssets = await db.getAssetsInSet(id)
         await sendSetAllocatedToTeacher({
           teacherEmail: teacherUser.email,
           teacherName: teacherUser.name,
           setName: name.trim(),
-          deviceCount: set?.asset_count ?? 0,
+          devices: setAssets.map(a => ({ assetTag: a.asset_tag, name: a.name, type: a.type })),
           locationName: null,
           allocatedByName: auth.name,
         })

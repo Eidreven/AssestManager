@@ -51,12 +51,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     try {
       const teacherUser = await db.getUserByName(teacher)
       if (teacherUser?.email) {
+        const resolvedLocName = locationId ? (await db.getAllLocations()).find(l => l.id === locationId)?.name ?? null : null
         await sendSetAllocatedToTeacher({
           teacherEmail: teacherUser.email,
           teacherName: teacherUser.name,
           setName: set.name,
-          deviceCount: assets.length,
-          locationName: locationId ? (await db.getAllLocations()).find(l => l.id === locationId)?.name ?? null : null,
+          devices: assets.map(a => ({ assetTag: a.asset_tag, name: a.name, type: a.type })),
+          locationName: resolvedLocName,
           allocatedByName: auth.name,
         })
       }
