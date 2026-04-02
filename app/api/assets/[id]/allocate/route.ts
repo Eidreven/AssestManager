@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthFromCookies, isAdmin } from '@/lib/auth'
-import { sendAllocationNotification, sendReturnNotification } from '@/lib/email'
+import { sendAllocationNotification, sendReturnNotification, sendDeviceAllocatedToTeacher } from '@/lib/email'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     notes,
   })
 
-  // Email notification (best-effort, after response-critical work)
+  // Email notifications (best-effort)
   const locations = location_id ? await db.getAllLocations() : []
   const locationName = locations.find(l => l.id === Number(location_id))?.name ?? null
   try {
@@ -52,7 +52,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       allocatedByName: auth.name,
       notes: notes ?? null,
     })
-  } catch (err) { console.error('Allocation email error:', err) }
+  } catch (err) { console.error('Allocation admin email error:', err) }
+
+  // Email the teacher/person if they have an account
+  try {
+    const teacher = await db.getUserByName(allocated_to)
+    if (teacher?.email) {
+      await sendDeviceAllocatedToTeacher({
+        teacherEmail: teacher.email,
+        teacherName: teacher.name,
+        assetTag: asset.asset_tag,
+        assetName: asset.name,
+        assetType: asset.type,
+        locationName,
+        purpose: purpose ?? null,
+        isTemporary: Boolean(is_temporary),
+        expectedReturn: expected_return ?? null,
+        allocatedByName: auth.name,
+        notes: notes ?? null,
+      })
+    }
+  } catch (err) { console.error('Allocation teacher email error:', err) }
 
   return NextResponse.json({ id }, { status: 201 })
 }

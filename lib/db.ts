@@ -404,6 +404,10 @@ export const db = {
     const r = await sql('SELECT id, name, email, role, created_at FROM users ORDER BY name')
     return r.rows as unknown as Omit<User, 'password_hash'>[]
   },
+  async getUserByName(name: string): Promise<Omit<User, 'password_hash'> | undefined> {
+    const r = await sql('SELECT id, name, email, role, created_at FROM users WHERE name = ? LIMIT 1', [name])
+    return r.rows[0] as unknown as Omit<User, 'password_hash'> | undefined
+  },
   async getTeachers(): Promise<Omit<User, 'password_hash'>[]> {
     const r = await sql("SELECT id, name, email, role, created_at FROM users WHERE role = 'teacher' ORDER BY name")
     return r.rows as unknown as Omit<User, 'password_hash'>[]

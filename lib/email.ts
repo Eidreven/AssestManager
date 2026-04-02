@@ -199,6 +199,81 @@ export async function sendAllocationNotification(params: {
   await sendMail(ADMIN_EMAILS, `Device allocated — ${assetTag} → ${allocatedTo}`, baseTemplate('Device Allocated', body))
 }
 
+// ── 3b. Notify teacher when a device is allocated to them ─────────────────────
+
+export async function sendDeviceAllocatedToTeacher(params: {
+  teacherEmail: string
+  teacherName: string
+  assetTag: string
+  assetName: string
+  assetType: string
+  locationName?: string | null
+  purpose?: string | null
+  isTemporary: boolean
+  expectedReturn?: string | null
+  allocatedByName: string
+  notes?: string | null
+}) {
+  const { teacherEmail, teacherName, assetTag, assetName, assetType, locationName, purpose, isTemporary, expectedReturn, allocatedByName, notes } = params
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${teacherName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      The following device has been allocated to you by <strong>${allocatedByName}</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <tr><td style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+        <span style="font-weight:700;color:#1e3a8a;font-family:monospace;font-size:14px;">${assetTag}</span>
+        <span style="color:#6b7280;font-size:14px;margin-left:8px;">— ${assetName} (${assetType})</span>
+      </td></tr>
+      <tr><td style="padding:16px;">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          ${row('Location', locationName)}
+          ${row('Purpose', purpose)}
+          ${row('Type', isTemporary ? '⏳ Temporary loan' : '📌 Permanent allocation')}
+          ${expectedReturn ? row('Expected Return', expectedReturn) : ''}
+          ${notes ? row('Notes', notes) : ''}
+        </table>
+      </td></tr>
+    </table>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Please contact the IT team if you have any questions.</p>
+  `
+  await sendMail(teacherEmail, `Device allocated to you — ${assetTag} ${assetName}`, baseTemplate('Device Allocated to You', body))
+}
+
+// ── 3c. Notify teacher when a class set is allocated to them ──────────────────
+
+export async function sendSetAllocatedToTeacher(params: {
+  teacherEmail: string
+  teacherName: string
+  setName: string
+  deviceCount: number
+  locationName?: string | null
+  allocatedByName: string
+  notes?: string | null
+}) {
+  const { teacherEmail, teacherName, setName, deviceCount, locationName, allocatedByName, notes } = params
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${teacherName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      The following class set has been allocated to you by <strong>${allocatedByName}</strong>.
+    </p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <tr><td style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+        <span style="font-weight:700;color:#1e3a8a;font-size:15px;">📦 ${setName}</span>
+      </td></tr>
+      <tr><td style="padding:16px;">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          ${row('Devices', `${deviceCount} device${deviceCount !== 1 ? 's' : ''}`)}
+          ${row('Location', locationName)}
+          ${notes ? row('Notes', notes) : ''}
+        </table>
+      </td></tr>
+    </table>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Please contact the IT team if you have any questions.</p>
+  `
+  await sendMail(teacherEmail, `Class set allocated to you — ${setName}`, baseTemplate('Class Set Allocated to You', body))
+}
+
 // ── 4. Notify admin when device is returned ───────────────────────────────────
 
 export async function sendReturnNotification(params: {

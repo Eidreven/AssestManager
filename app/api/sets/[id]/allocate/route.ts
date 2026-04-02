@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthFromCookies, isAdmin } from '@/lib/auth'
+import { sendSetAllocatedToTeacher } from '@/lib/email'
 
 // POST — allocate all devices in set to the set's responsible teacher
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -44,6 +45,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       notes: notes || null,
     })
   }))
+
+  // Email the teacher if they have an account
+  if (teacher) {
+    try {
+      const teacherUser = await db.getUserByName(teacher)
+      if (teacherUser?.email) {
+        await sendSetAllocatedToTeacher({
+          teacherEmail: teacherUser.email,
+          teacherName: teacherUser.name,
+          setName: set.name,
+          deviceCount: assets.length,
+          locationName: locationId ? (await db.getAllLocations()).find(l => l.id === locationId)?.name ?? null : null,
+          allocatedByName: auth.name,
+        })
+      }
+    } catch (err) { console.error('Set allocation teacher email error:', err) }
+  }
 
   return NextResponse.json({ ok: true, count: assets.length })
 }
