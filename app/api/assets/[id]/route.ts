@@ -57,8 +57,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const changes: string[] = []
     for (const [key, label] of Object.entries(FIELD_LABELS)) {
       if (key in update) {
-        const oldVal = (before as Record<string, unknown>)[key] ?? null
-        const newVal = (asset as Record<string, unknown>)[key] ?? null
+        const oldVal = (before as unknown as Record<string, unknown>)[key] ?? null
+        const newVal = (asset as unknown as Record<string, unknown>)[key] ?? null
         if (String(oldVal ?? '') !== String(newVal ?? '')) {
           changes.push(`${label}: "${oldVal ?? '—'}" → "${newVal ?? '—'}"`)
         }
