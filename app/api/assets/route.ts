@@ -22,6 +22,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Name and type are required' }, { status: 400 })
   }
 
+  // Enforce serial number uniqueness
+  if (serial_number?.trim()) {
+    const existing = await db.getAssetBySerial(serial_number.trim())
+    if (existing) {
+      return NextResponse.json(
+        { error: `Serial number already registered to asset ${existing.asset_tag}` },
+        { status: 409 }
+      )
+    }
+  }
+
   // Auto-generate asset tag
   const asset_tag = await db.nextAssetTag(type)
 

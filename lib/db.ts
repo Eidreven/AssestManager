@@ -176,6 +176,7 @@ async function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_assets_tag       ON assets(asset_tag)`,
     `CREATE INDEX IF NOT EXISTS idx_assets_status    ON assets(status)`,
     `CREATE INDEX IF NOT EXISTS idx_assets_type      ON assets(type)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_serial ON assets(serial_number) WHERE serial_number IS NOT NULL`,
     `CREATE INDEX IF NOT EXISTS idx_requests_asset   ON requests(asset_id)`,
     `CREATE INDEX IF NOT EXISTS idx_requests_status  ON requests(status)`,
     `CREATE INDEX IF NOT EXISTS idx_requests_at      ON requests(created_at)`,
@@ -540,6 +541,11 @@ export const db = {
       WHERE a.id = ?
     `, [id])
     return r.rows[0] ? mapAssetRow(r.rows[0] as unknown as RawAssetRow) : undefined
+  },
+
+  async getAssetBySerial(serial: string): Promise<{ id: number; asset_tag: string } | undefined> {
+    const r = await sql('SELECT id, asset_tag FROM assets WHERE serial_number = ? LIMIT 1', [serial])
+    return r.rows[0] as unknown as { id: number; asset_tag: string } | undefined
   },
 
   async getAssetByTag(tag: string): Promise<AssetWithDetails | undefined> {

@@ -26,6 +26,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (key in body) update[key] = body[key] === '' ? null : body[key]
   }
 
+  // Enforce serial number uniqueness (exclude self)
+  if (update.serial_number && typeof update.serial_number === 'string' && update.serial_number.trim()) {
+    const existing = await db.getAssetBySerial(update.serial_number.trim())
+    if (existing && existing.id !== id) {
+      return NextResponse.json(
+        { error: `Serial number already registered to asset ${existing.asset_tag}` },
+        { status: 409 }
+      )
+    }
+  }
+
   // Fetch before state to detect what changed
   const before = await db.getAssetById(id)
 
