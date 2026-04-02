@@ -26,18 +26,49 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (key in body) update[key] = body[key] === '' ? null : body[key]
   }
 
-  // Fetch current status before update so we can detect changes
-  const before = 'status' in update ? await db.getAssetById(id) : null
+  // Fetch before state to detect what changed
+  const before = await db.getAssetById(id)
 
   await db.updateAsset(id, update as Parameters<typeof db.updateAsset>[1])
+  const asset = await db.getAssetById(id)
 
-  // Log status changes to asset timeline
-  if (before && update.status && update.status !== before.status) {
-    await db.logAssetEvent(id, 'status_changed', auth.name, auth.userId,
-      `Status changed from ${before.status} to ${update.status}`)
+  // Build change log from before → after comparison
+  if (before && asset) {
+    const FIELD_LABELS: Record<string, string> = {
+      name: 'Name', type: 'Type', model: 'Model', asset_tag: 'Asset tag',
+      serial_number: 'Serial number', notes: 'Notes',
+      purchase_date: 'Purchase date', warranty_expiry: 'Warranty expiry',
+    }
+
+    // Status change — separate event type
+    if (update.status !== undefined && before.status !== asset.status) {
+      await db.logAssetEvent(id, 'status_changed', auth.name, auth.userId,
+        `Status changed from ${before.status} to ${asset.status}`)
+    }
+
+    // Location change — use resolved names
+    if (update.location_id !== undefined && before.location_id !== asset.location_id) {
+      const from = before.location_name ?? 'None'
+      const to = asset.location_name ?? 'None'
+      await db.logAssetEvent(id, 'edited', auth.name, auth.userId, `Location: ${from} → ${to}`)
+    }
+
+    // All other text/date fields
+    const changes: string[] = []
+    for (const [key, label] of Object.entries(FIELD_LABELS)) {
+      if (key in update) {
+        const oldVal = (before as Record<string, unknown>)[key] ?? null
+        const newVal = (asset as Record<string, unknown>)[key] ?? null
+        if (String(oldVal ?? '') !== String(newVal ?? '')) {
+          changes.push(`${label}: "${oldVal ?? '—'}" → "${newVal ?? '—'}"`)
+        }
+      }
+    }
+    if (changes.length > 0) {
+      await db.logAssetEvent(id, 'edited', auth.name, auth.userId, changes.join(' · '))
+    }
   }
 
-  const asset = await db.getAssetById(id)
   return NextResponse.json(asset)
 }
 
