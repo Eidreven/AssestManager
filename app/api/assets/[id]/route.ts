@@ -26,7 +26,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (key in body) update[key] = body[key] === '' ? null : body[key]
   }
 
+  // Fetch current status before update so we can detect changes
+  const before = 'status' in update ? await db.getAssetById(id) : null
+
   await db.updateAsset(id, update as Parameters<typeof db.updateAsset>[1])
+
+  // Log status changes to asset timeline
+  if (before && update.status && update.status !== before.status) {
+    await db.logAssetEvent(id, 'status_changed', auth.name, auth.userId,
+      `Status changed from ${before.status} to ${update.status}`)
+  }
+
   const asset = await db.getAssetById(id)
   return NextResponse.json(asset)
 }

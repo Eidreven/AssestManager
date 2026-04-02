@@ -13,13 +13,14 @@ export default async function AssetDetailPage({ params }: { params: { id: string
   const assetId = Number(params.id)
 
   // Fetch everything in parallel — asset id is known from params
-  const [asset, locations, teachers, sets, history, requests] = await Promise.all([
+  const [asset, locations, teachers, sets, history, requests, assetLogs] = await Promise.all([
     db.getAssetById(assetId),
     db.getAllLocations(),
     db.getTeachers(),
     db.getAllSets(),
     db.getAllocationHistory(assetId),
     db.getRequestsByAsset(assetId),
+    db.getAssetLogs(assetId),
   ])
   if (!asset) notFound()
 
@@ -77,6 +78,17 @@ export default async function AssetDetailPage({ params }: { params: { id: string
         detail: r.handler_notes ?? null,
       })
     }
+  }
+
+  // Convert asset_logs (status changes) → timeline entries
+  for (const log of assetLogs) {
+    timeline.push({
+      id: `log-${log.id}`,
+      type: log.event_type as TimelineEntry['type'],
+      timestamp: log.created_at,
+      actorName: log.actor_name ?? null,
+      summary: log.detail ?? log.event_type,
+    })
   }
 
   // Add "Asset registered" as the oldest entry
