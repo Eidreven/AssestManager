@@ -143,14 +143,20 @@ export default function BulkQrClient({ assets, teachers, sets }: Props) {
 
         /* ── Print styles ── */
         @media print {
+          /* Hide navbar, sidebar, footer, controls — only print the A4 pages */
+          aside, header, footer,
           .no-print { display: none !important; }
-          html, body {
+
+          /* Remove AppShell padding/margins */
+          html, body, main {
             margin: 0 !important;
             padding: 0 !important;
             background: white !important;
-            color: black !important;
-            color-scheme: light !important;
           }
+          /* Override AppShell's lg:pl-60 and pt-14 offsets */
+          main { padding-left: 0 !important; padding-top: 0 !important; }
+          main > div { padding: 0 !important; max-width: none !important; }
+
           @page {
             size: A4 portrait;
             margin: 9.5mm 5.9mm;
