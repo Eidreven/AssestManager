@@ -26,6 +26,8 @@ interface Request {
   created_at: string
 }
 
+interface Location { id: number; name: string }
+
 const PRIORITY_STYLES: Record<string, string> = {
   low: 'bg-gray-100 text-gray-600',
   medium: 'bg-blue-100 text-blue-700',
@@ -49,29 +51,53 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
   const [fetchError, setFetchError] = useState('')
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [handlerNotes, setHandlerNotes] = useState<Record<number, string>>({})
+  const [locations, setLocations] = useState<Location[]>([])
+  const [issueOptions, setIssueOptions] = useState<Record<number, { setMaintenance: boolean; locationId: string }>>({})
 
   useEffect(() => {
     ;(async () => {
       try {
-        const res = await fetch('/api/requests')
-        if (!res.ok) throw new Error('Failed to load requests')
-        const data = await res.json()
+        const [reqRes, locRes] = await Promise.all([
+          fetch('/api/requests'),
+          canManage ? fetch('/api/locations') : Promise.resolve(null),
+        ])
+        if (!reqRes.ok) throw new Error('Failed to load requests')
+        const data = await reqRes.json()
         setRequests(Array.isArray(data) ? data : [])
+        if (locRes?.ok) setLocations(await locRes.json())
       } catch {
         setFetchError('Could not load requests. Please refresh.')
       } finally {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [canManage])
 
-  async function handle(id: number, status: string) {
+  function getIssueOpts(id: number) {
+    return issueOptions[id] ?? { setMaintenance: true, locationId: '' }
+  }
+
+  function updateIssueOpt(id: number, patch: Partial<{ setMaintenance: boolean; locationId: string }>) {
+    setIssueOptions(prev => ({ ...prev, [id]: { ...getIssueOpts(id), ...patch } }))
+  }
+
+  async function handle(id: number, status: string, request?: Request) {
     setActionLoading(id)
     try {
+      const body: Record<string, unknown> = {
+        status,
+        handler_notes: handlerNotes[id] ?? '',
+      }
+      // For issue requests being approved, include maintenance & relocation options
+      if (request?.request_type === 'issue' && status === 'approved') {
+        const opts = getIssueOpts(id)
+        body.set_maintenance = opts.setMaintenance
+        if (opts.locationId) body.relocate_to = Number(opts.locationId)
+      }
       await fetch(`/api/requests/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, handler_notes: handlerNotes[id] ?? '' }),
+        body: JSON.stringify(body),
       })
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r))
     } finally {
@@ -174,7 +200,7 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
 
                   {/* Actions — admin/superadmin only */}
                   {canManage && r.status === 'pending' && (
-                    <div className="flex flex-col gap-2 min-w-48">
+                    <div className="flex flex-col gap-2 min-w-52">
                       <textarea
                         placeholder="Optional note…"
                         value={handlerNotes[r.id] ?? ''}
@@ -182,16 +208,44 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
                         className="input resize-none text-xs"
                         rows={2}
                       />
+
+                      {/* Issue-specific options — maintenance & relocation */}
+                      {r.request_type === 'issue' && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                          <p className="text-xs font-semibold text-amber-800">Maintenance Options</p>
+                          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={getIssueOpts(r.id).setMaintenance}
+                              onChange={e => updateIssueOpt(r.id, { setMaintenance: e.target.checked })}
+                              className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                            />
+                            Set device to maintenance
+                          </label>
+                          <div>
+                            <label className="text-xs text-gray-500">Relocate to</label>
+                            <select
+                              className="input text-xs mt-0.5"
+                              value={getIssueOpts(r.id).locationId}
+                              onChange={e => updateIssueOpt(r.id, { locationId: e.target.value })}
+                            >
+                              <option value="">— Keep current location —</option>
+                              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handle(r.id, 'approved')}
+                          onClick={() => handle(r.id, 'approved', r)}
                           disabled={actionLoading === r.id}
                           className="btn-success flex-1 text-xs"
                         >
                           Approve
                         </button>
                         <button
-                          onClick={() => handle(r.id, 'rejected')}
+                          onClick={() => handle(r.id, 'rejected', r)}
                           disabled={actionLoading === r.id}
                           className="btn-danger flex-1 text-xs"
                         >
@@ -199,7 +253,7 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
                         </button>
                       </div>
                       <button
-                        onClick={() => handle(r.id, 'completed')}
+                        onClick={() => handle(r.id, 'completed', r)}
                         disabled={actionLoading === r.id}
                         className="btn-secondary text-xs"
                       >

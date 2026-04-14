@@ -321,26 +321,38 @@ export async function sendRequestStatusUpdate(params: {
   requestType: string
   status: string
   handlerNotes?: string | null
+  maintenanceApplied?: boolean
 }) {
-  const { requesterName, requesterEmail, assetTag, assetName, requestType, status, handlerNotes } = params
+  const { requesterName, requesterEmail, assetTag, assetName, requestType, status, handlerNotes, maintenanceApplied } = params
   const approved = status === 'approved' || status === 'completed'
   const statusLabel = status === 'approved' ? '✅ Approved' : status === 'completed' ? '✅ Completed' : '❌ Rejected'
+
+  let message = approved
+    ? 'Good news — your request has been approved.'
+    : 'Your request has been reviewed and unfortunately cannot be fulfilled at this time.'
+
+  if (maintenanceApplied) {
+    message = 'Your issue report has been reviewed and approved. The device has been placed into <strong>maintenance</strong> and the IT team will work on resolving the issue.'
+  }
+
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${requesterName},</p>
-    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      ${approved ? 'Good news — your request has been approved.' : 'Your request has been reviewed and unfortunately cannot be fulfilled at this time.'}
-    </p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">${message}</p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="padding:16px;">
         <table cellpadding="0" cellspacing="0" width="100%">
           ${row('Device', `${assetTag} — ${assetName}`)}
           ${row('Request Type', TYPE_LABELS[requestType] ?? requestType)}
           ${row('Status', statusLabel)}
+          ${maintenanceApplied ? row('Device Status', '🔧 In Maintenance') : ''}
           ${handlerNotes ? row('Notes from IT', handlerNotes) : ''}
         </table>
       </td></tr>
     </table>
     <p style="margin:0;color:#6b7280;font-size:13px;">If you have any questions, please contact the IT team directly.</p>
   `
-  await sendMail(requesterEmail, `Your request has been ${status} — ${assetTag}`, baseTemplate(`Request ${approved ? 'Approved' : 'Rejected'}`, body))
+  const subject = maintenanceApplied
+    ? `Your device is now in maintenance — ${assetTag}`
+    : `Your request has been ${status} — ${assetTag}`
+  await sendMail(requesterEmail, subject, baseTemplate(maintenanceApplied ? 'Device In Maintenance' : `Request ${approved ? 'Approved' : 'Rejected'}`, body))
 }

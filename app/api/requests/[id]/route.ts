@@ -8,7 +8,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!isAdmin(auth)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { status, handler_notes } = await req.json()
+  const { status, handler_notes, set_maintenance, relocate_to } = await req.json()
 
   if (!['approved', 'rejected', 'completed'].includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
@@ -22,6 +22,24 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   await db.updateRequestStatus(requestId, status, auth.userId, handler_notes)
 
+  // For issue requests approved with maintenance — update asset status & location
+  let maintenanceApplied = false
+  if (request && status === 'approved' && request.request_type === 'issue') {
+    const currentAsset = await db.getAssetById(request.asset_id)
+    if (set_maintenance && currentAsset) {
+      await db.updateAsset(request.asset_id, { status: 'maintenance' })
+      await db.logAssetEvent(request.asset_id, 'status_changed', auth.name, auth.userId,
+        `Status changed from ${currentAsset.status} to maintenance (issue report approved)`)
+      maintenanceApplied = true
+    }
+    if (relocate_to && currentAsset) {
+      await db.updateAsset(request.asset_id, { location_id: Number(relocate_to) })
+      const after = await db.getAssetById(request.asset_id)
+      await db.logAssetEvent(request.asset_id, 'edited', auth.name, auth.userId,
+        `Location: ${currentAsset.location_name ?? 'None'} → ${after?.location_name ?? 'None'} (issue report)`)
+    }
+  }
+
   // Email requester if they provided an email
   if (request?.requester_email) {
     try {
@@ -33,6 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         requestType: request.request_type,
         status,
         handlerNotes: handler_notes,
+        maintenanceApplied,
       })
     } catch (err) { console.error('Status update email error:', err) }
   }
