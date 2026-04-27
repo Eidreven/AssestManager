@@ -27,6 +27,7 @@ interface Request {
 }
 
 interface Location { id: number; name: string }
+interface User { id: number; name: string; email: string; role: string }
 
 const PRIORITY_STYLES: Record<string, string> = {
   low: 'bg-gray-100 text-gray-600',
@@ -52,19 +53,25 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [handlerNotes, setHandlerNotes] = useState<Record<number, string>>({})
   const [locations, setLocations] = useState<Location[]>([])
-  const [issueOptions, setIssueOptions] = useState<Record<number, { setMaintenance: boolean; locationId: string }>>({})
+  const [users, setUsers] = useState<User[]>([])
+  const [issueOptions, setIssueOptions] = useState<Record<number, { setMaintenance: boolean; locationId: string; assignedToId: string }>>({})
 
   useEffect(() => {
     ;(async () => {
       try {
-        const [reqRes, locRes] = await Promise.all([
+        const [reqRes, locRes, userRes] = await Promise.all([
           fetch('/api/requests'),
           canManage ? fetch('/api/locations') : Promise.resolve(null),
+          canManage ? fetch('/api/users') : Promise.resolve(null),
         ])
         if (!reqRes.ok) throw new Error('Failed to load requests')
         const data = await reqRes.json()
         setRequests(Array.isArray(data) ? data : [])
         if (locRes?.ok) setLocations(await locRes.json())
+        if (userRes?.ok) {
+          const allUsers = await userRes.json()
+          setUsers(allUsers.filter((u: User) => u.role === 'admin' || u.role === 'superadmin'))
+        }
       } catch {
         setFetchError('Could not load requests. Please refresh.')
       } finally {
@@ -74,10 +81,10 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
   }, [canManage])
 
   function getIssueOpts(id: number) {
-    return issueOptions[id] ?? { setMaintenance: true, locationId: '' }
+    return issueOptions[id] ?? { setMaintenance: true, locationId: '', assignedToId: '' }
   }
 
-  function updateIssueOpt(id: number, patch: Partial<{ setMaintenance: boolean; locationId: string }>) {
+  function updateIssueOpt(id: number, patch: Partial<{ setMaintenance: boolean; locationId: string; assignedToId: string }>) {
     setIssueOptions(prev => ({ ...prev, [id]: { ...getIssueOpts(id), ...patch } }))
   }
 
@@ -93,6 +100,7 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
         const opts = getIssueOpts(id)
         body.set_maintenance = opts.setMaintenance
         if (opts.locationId) body.relocate_to = Number(opts.locationId)
+        if (opts.assignedToId) body.assigned_to_id = Number(opts.assignedToId)
       }
       await fetch(`/api/requests/${id}`, {
         method: 'PUT',
@@ -233,6 +241,17 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
                               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                             </select>
                           </div>
+                          <div>
+                            <label className="text-xs text-gray-500">Assign maintenance to</label>
+                            <select
+                              className="input text-xs mt-0.5"
+                              value={getIssueOpts(r.id).assignedToId}
+                              onChange={e => updateIssueOpt(r.id, { assignedToId: e.target.value })}
+                            >
+                              <option value="">— Current IT user —</option>
+                              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                            </select>
+                          </div>
                         </div>
                       )}
 
@@ -252,13 +271,15 @@ export default function RequestsPage({ canManage = false }: { canManage?: boolea
                           Reject
                         </button>
                       </div>
-                      <button
-                        onClick={() => handle(r.id, 'completed', r)}
-                        disabled={actionLoading === r.id}
-                        className="btn-secondary text-xs"
-                      >
-                        Mark Completed
-                      </button>
+                      {r.request_type !== 'issue' && (
+                        <button
+                          onClick={() => handle(r.id, 'completed', r)}
+                          disabled={actionLoading === r.id}
+                          className="btn-secondary text-xs"
+                        >
+                          Mark Completed
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

@@ -141,6 +141,27 @@ async function initSchema() {
       detail TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )`,
+    `CREATE TABLE IF NOT EXISTS maintenance_jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      request_id INTEGER UNIQUE REFERENCES requests(id) ON DELETE SET NULL,
+      reported_by_name TEXT,
+      reported_by_email TEXT,
+      fault_description TEXT,
+      priority TEXT NOT NULL DEFAULT 'medium',
+      status TEXT NOT NULL DEFAULT 'approved',
+      approved_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_to_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      started_at TEXT,
+      held_at TEXT,
+      completed_at TEXT,
+      latest_note TEXT,
+      resolution_note TEXT,
+      return_location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+      return_set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`,
     `CREATE TABLE IF NOT EXISTS activity_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -181,6 +202,9 @@ async function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_requests_status  ON requests(status)`,
     `CREATE INDEX IF NOT EXISTS idx_requests_at      ON requests(created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_asset_logs_asset ON asset_logs(asset_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_maint_asset      ON maintenance_jobs(asset_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_maint_status     ON maintenance_jobs(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_maint_assigned   ON maintenance_jobs(assigned_to_id)`,
     `CREATE INDEX IF NOT EXISTS idx_activity_user    ON activity_logs(user_id)`,
   ])
 }
@@ -292,6 +316,44 @@ export interface RequestWithDetails extends Request {
   from_location_name: string | null
   to_location_name: string | null
   handled_by_name: string | null
+}
+
+export type MaintenanceStatus = 'approved' | 'in_progress' | 'on_hold' | 'completed'
+
+export interface MaintenanceJob {
+  id: number
+  asset_id: number
+  request_id: number | null
+  reported_by_name: string | null
+  reported_by_email: string | null
+  fault_description: string | null
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  status: MaintenanceStatus
+  approved_by_id: number | null
+  assigned_to_id: number | null
+  started_at: string | null
+  held_at: string | null
+  completed_at: string | null
+  latest_note: string | null
+  resolution_note: string | null
+  return_location_id: number | null
+  return_set_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MaintenanceJobWithDetails extends MaintenanceJob {
+  asset_name: string | null
+  asset_tag: string | null
+  asset_type: string | null
+  asset_status: string | null
+  location_name: string | null
+  set_name: string | null
+  assigned_to_name: string | null
+  assigned_to_email: string | null
+  approved_by_name: string | null
+  return_location_name: string | null
+  return_set_name: string | null
 }
 
 export interface AssetLog {
@@ -739,6 +801,130 @@ export const db = {
       UPDATE requests SET status = ?, handled_by_id = ?, handled_at = datetime('now'), handler_notes = ?
       WHERE id = ?
     `, [status, handledById ?? null, handlerNotes ?? null, id])
+  },
+
+  // Maintenance
+  async getAllMaintenanceJobs(): Promise<MaintenanceJobWithDetails[]> {
+    await schemaReady
+    const r = await sql(`
+      SELECT m.*, a.name AS asset_name, a.asset_tag, a.type AS asset_type, a.status AS asset_status,
+             l.name AS location_name, s.name AS set_name,
+             assignee.name AS assigned_to_name, assignee.email AS assigned_to_email,
+             approver.name AS approved_by_name,
+             rl.name AS return_location_name, rs.name AS return_set_name
+      FROM maintenance_jobs m
+      LEFT JOIN assets a ON m.asset_id = a.id
+      LEFT JOIN locations l ON a.location_id = l.id
+      LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN users assignee ON m.assigned_to_id = assignee.id
+      LEFT JOIN users approver ON m.approved_by_id = approver.id
+      LEFT JOIN locations rl ON m.return_location_id = rl.id
+      LEFT JOIN asset_sets rs ON m.return_set_id = rs.id
+      ORDER BY
+        CASE m.status
+          WHEN 'in_progress' THEN 1
+          WHEN 'approved' THEN 2
+          WHEN 'on_hold' THEN 3
+          ELSE 4
+        END,
+        m.updated_at DESC
+    `)
+    return r.rows as unknown as MaintenanceJobWithDetails[]
+  },
+
+  async getMaintenanceJobsForUser(userId: number, email: string): Promise<MaintenanceJobWithDetails[]> {
+    await schemaReady
+    const r = await sql(`
+      SELECT m.*, a.name AS asset_name, a.asset_tag, a.type AS asset_type, a.status AS asset_status,
+             l.name AS location_name, s.name AS set_name,
+             assignee.name AS assigned_to_name, assignee.email AS assigned_to_email,
+             approver.name AS approved_by_name,
+             rl.name AS return_location_name, rs.name AS return_set_name
+      FROM maintenance_jobs m
+      LEFT JOIN assets a ON m.asset_id = a.id
+      LEFT JOIN locations l ON a.location_id = l.id
+      LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN users assignee ON m.assigned_to_id = assignee.id
+      LEFT JOIN users approver ON m.approved_by_id = approver.id
+      LEFT JOIN locations rl ON m.return_location_id = rl.id
+      LEFT JOIN asset_sets rs ON m.return_set_id = rs.id
+      WHERE m.assigned_to_id = ? OR lower(m.reported_by_email) = lower(?)
+      ORDER BY m.updated_at DESC
+    `, [userId, email])
+    return r.rows as unknown as MaintenanceJobWithDetails[]
+  },
+
+  async getMaintenanceJobById(id: number): Promise<MaintenanceJobWithDetails | undefined> {
+    await schemaReady
+    const r = await sql(`
+      SELECT m.*, a.name AS asset_name, a.asset_tag, a.type AS asset_type, a.status AS asset_status,
+             l.name AS location_name, s.name AS set_name,
+             assignee.name AS assigned_to_name, assignee.email AS assigned_to_email,
+             approver.name AS approved_by_name,
+             rl.name AS return_location_name, rs.name AS return_set_name
+      FROM maintenance_jobs m
+      LEFT JOIN assets a ON m.asset_id = a.id
+      LEFT JOIN locations l ON a.location_id = l.id
+      LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN users assignee ON m.assigned_to_id = assignee.id
+      LEFT JOIN users approver ON m.approved_by_id = approver.id
+      LEFT JOIN locations rl ON m.return_location_id = rl.id
+      LEFT JOIN asset_sets rs ON m.return_set_id = rs.id
+      WHERE m.id = ?
+    `, [id])
+    return r.rows[0] as unknown as MaintenanceJobWithDetails | undefined
+  },
+
+  async getMaintenanceJobsByAsset(assetId: number): Promise<MaintenanceJobWithDetails[]> {
+    await schemaReady
+    const r = await sql(`
+      SELECT m.*, a.name AS asset_name, a.asset_tag, a.type AS asset_type, a.status AS asset_status,
+             l.name AS location_name, s.name AS set_name,
+             assignee.name AS assigned_to_name, assignee.email AS assigned_to_email,
+             approver.name AS approved_by_name,
+             rl.name AS return_location_name, rs.name AS return_set_name
+      FROM maintenance_jobs m
+      LEFT JOIN assets a ON m.asset_id = a.id
+      LEFT JOIN locations l ON a.location_id = l.id
+      LEFT JOIN asset_sets s ON a.set_id = s.id
+      LEFT JOIN users assignee ON m.assigned_to_id = assignee.id
+      LEFT JOIN users approver ON m.approved_by_id = approver.id
+      LEFT JOIN locations rl ON m.return_location_id = rl.id
+      LEFT JOIN asset_sets rs ON m.return_set_id = rs.id
+      WHERE m.asset_id = ?
+      ORDER BY m.created_at DESC
+    `, [assetId])
+    return r.rows as unknown as MaintenanceJobWithDetails[]
+  },
+
+  async getOpenMaintenanceJobForAsset(assetId: number): Promise<MaintenanceJobWithDetails | undefined> {
+    const jobs = await this.getMaintenanceJobsByAsset(assetId)
+    return jobs.find(j => j.status !== 'completed')
+  },
+
+  async createMaintenanceJob(data: {
+    asset_id: number; request_id?: number | null; reported_by_name?: string | null
+    reported_by_email?: string | null; fault_description?: string | null; priority?: string
+    approved_by_id?: number | null; assigned_to_id?: number | null; latest_note?: string | null
+  }): Promise<number> {
+    await schemaReady
+    const r = await sql(`
+      INSERT INTO maintenance_jobs
+        (asset_id, request_id, reported_by_name, reported_by_email, fault_description,
+         priority, approved_by_id, assigned_to_id, latest_note)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [data.asset_id, data.request_id ?? null, data.reported_by_name ?? null,
+        data.reported_by_email ?? null, data.fault_description ?? null, data.priority ?? 'medium',
+        data.approved_by_id ?? null, data.assigned_to_id ?? null, data.latest_note ?? null])
+    return r.lastInsertRowid!
+  },
+
+  async updateMaintenanceJob(id: number, data: Partial<Omit<MaintenanceJob, 'id' | 'created_at' | 'updated_at'>>): Promise<void> {
+    await schemaReady
+    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ')
+    const values = Object.values(data) as SqlValue[]
+    if (!fields) return
+    await sql(`UPDATE maintenance_jobs SET ${fields}, updated_at = datetime('now') WHERE id = ?`, [...values, id])
   },
 
   // Asset Logs

@@ -13,7 +13,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
   const assetId = Number(params.id)
 
   // Fetch everything in parallel — asset id is known from params
-  const [asset, locations, teachers, sets, history, requests, assetLogs] = await Promise.all([
+  const [asset, locations, teachers, sets, history, requests, assetLogs, maintenanceJobs] = await Promise.all([
     db.getAssetById(assetId),
     db.getAllLocations(),
     db.getTeachers(),
@@ -21,6 +21,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
     db.getAllocationHistory(assetId),
     db.getRequestsByAsset(assetId),
     db.getAssetLogs(assetId),
+    db.getMaintenanceJobsByAsset(assetId),
   ])
   if (!asset) notFound()
 
@@ -105,6 +106,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
   timeline.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
   const alloc = asset.current_allocation
+  const activeMaintenance = maintenanceJobs.find(j => j.status !== 'completed')
 
   function formatDate(s: string | null | undefined) {
     if (!s) return null
@@ -298,6 +300,24 @@ export default async function AssetDetailPage({ params }: { params: { id: string
             mode="request"
           />
         </div>
+
+        {activeMaintenance && (
+          <div className="card p-6 border-amber-200 bg-amber-50">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-gray-900 mb-1">Active Maintenance</h2>
+                <p className="text-sm text-gray-700">
+                  Status: <span className={`badge-${activeMaintenance.status}`}>{activeMaintenance.status.replace('_', ' ')}</span>
+                </p>
+                <p className="text-sm text-gray-600 mt-2">
+                  Assigned to {activeMaintenance.assigned_to_name ?? 'IT team'}.
+                  {activeMaintenance.latest_note ? ` Latest note: ${activeMaintenance.latest_note}` : ''}
+                </p>
+              </div>
+              <Link href="/maintenance" className="btn-secondary text-sm">Open Maintenance</Link>
+            </div>
+          </div>
+        )}
 
         {/* Pending requests for this asset */}
         {requests.filter(r => r.status === 'pending').length > 0 && (

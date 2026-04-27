@@ -48,6 +48,16 @@ const NAV_LINKS = [
     ),
   },
   {
+    href: '/maintenance',
+    label: 'Maintenance',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.5-2.5a3.375 3.375 0 00-4.773-4.773l-2.5 2.5m4.773 4.773l-4.773-4.773m0 0L3 6.75V3h3.75l3.647 3.647" />
+      </svg>
+    ),
+  },
+  {
     href: '/sets',
     label: 'Class Sets',
     icon: (

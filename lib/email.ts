@@ -356,3 +356,67 @@ export async function sendRequestStatusUpdate(params: {
     : `Your request has been ${status} — ${assetTag}`
   await sendMail(requesterEmail, subject, baseTemplate(maintenanceApplied ? 'Device In Maintenance' : `Request ${approved ? 'Approved' : 'Rejected'}`, body))
 }
+
+// ── 6. Maintenance workflow updates ─────────────────────────────────────────
+
+export async function sendMaintenanceStatusUpdate(params: {
+  toEmail: string
+  toName: string
+  assetTag: string
+  assetName: string
+  status: string
+  note?: string | null
+  assignedToName?: string | null
+}) {
+  const { toEmail, toName, assetTag, assetName, status, note, assignedToName } = params
+  const labels: Record<string, string> = {
+    approved: 'Approved for maintenance',
+    in_progress: 'Maintenance started',
+    on_hold: 'Maintenance on hold',
+    completed: 'Maintenance completed',
+  }
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${toName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">The maintenance status for this device has been updated.</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <tr><td style="padding:16px;">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          ${row('Device', `${assetTag} — ${assetName}`)}
+          ${row('Status', labels[status] ?? status)}
+          ${row('Assigned To', assignedToName)}
+          ${note ? row('IT Note', note) : ''}
+        </table>
+      </td></tr>
+    </table>
+    <p style="margin:0;color:#6b7280;font-size:13px;">You can check the latest status in MPS Asset Manager.</p>
+  `
+  await sendMail(toEmail, `${labels[status] ?? 'Maintenance update'} — ${assetTag}`, baseTemplate(labels[status] ?? 'Maintenance Update', body))
+}
+
+export async function sendMaintenanceAssignedNotification(params: {
+  assigneeEmail: string
+  assigneeName: string
+  assetTag: string
+  assetName: string
+  priority: string
+  faultDescription?: string | null
+  requesterName?: string | null
+}) {
+  const { assigneeEmail, assigneeName, assetTag, assetName, priority, faultDescription, requesterName } = params
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${assigneeName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">A device maintenance job has been assigned to you.</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <tr><td style="padding:16px;">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          ${row('Device', `${assetTag} — ${assetName}`)}
+          ${row('Priority', PRIORITY_LABELS[priority] ?? priority)}
+          ${row('Reported By', requesterName)}
+          ${faultDescription ? row('Fault', faultDescription) : ''}
+        </table>
+      </td></tr>
+    </table>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Please log in to MPS Asset Manager and open Maintenance to start work.</p>
+  `
+  await sendMail(assigneeEmail, `Maintenance assigned — ${assetTag}`, baseTemplate('Maintenance Assigned', body))
+}
