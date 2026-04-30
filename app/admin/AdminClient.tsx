@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent, useRef } from 'react'
 
 interface Location { id: number; name: string; description: string | null }
-interface User { id: number; name: string; email: string; role: string; created_at: string }
+interface User { id: number; name: string; email: string; role: string; must_change_password?: number; created_at: string }
 
 interface Props { isSuperAdmin: boolean }
 
@@ -27,6 +27,7 @@ export default function AdminPage({ isSuperAdmin }: Props) {
   const [editingLoc, setEditingLoc] = useState<{ id: number; name: string; description: string } | null>(null)
   const [editingUser, setEditingUser] = useState<{ id: number; name: string; email: string; role: string } | null>(null)
   const [userEditLoading, setUserEditLoading] = useState(false)
+  const [userActionLoading, setUserActionLoading] = useState<number | null>(null)
   const [locLoading, setLocLoading] = useState(false)
   const [userLoading, setUserLoading] = useState(false)
   const [backupLoading, setBackupLoading] = useState(false)
@@ -183,6 +184,45 @@ export default function AdminPage({ isSuperAdmin }: Props) {
     }
   }
 
+  async function resetUserPassword(user: User) {
+    if (!confirm(`Reset password for "${user.name}" to temporary password mc2026 and email them?`)) return
+    setUserActionLoading(user.id); setError(''); setSuccess('')
+    try {
+      const res = await fetch(`/api/users/${user.id}/reset-password`, { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setUsers(prev => prev.map(u => u.id === user.id ? { ...u, must_change_password: 1 } : u))
+        setSuccess(data.emailSent === false
+          ? `Password reset to mc2026, but email could not be sent.`
+          : `Temporary password sent to ${user.email}.`)
+      } else {
+        setError(data.error ?? 'Failed to reset password')
+      }
+    } catch {
+      setError('Failed to reset password')
+    } finally {
+      setUserActionLoading(null)
+    }
+  }
+
+  async function impersonateUser(user: User) {
+    if (!confirm(`Login as "${user.name}"? You will switch into their account.`)) return
+    setUserActionLoading(user.id); setError(''); setSuccess('')
+    try {
+      const res = await fetch(`/api/users/${user.id}/impersonate`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to login as user')
+        return
+      }
+      window.location.href = '/dashboard'
+    } catch {
+      setError('Failed to login as user')
+    } finally {
+      setUserActionLoading(null)
+    }
+  }
+
   async function addUser(e: FormEvent) {
     e.preventDefault()
     setUserLoading(true); setError(''); setSuccess('')
@@ -193,7 +233,7 @@ export default function AdminPage({ isSuperAdmin }: Props) {
     })
     const data = await res.json()
     if (res.ok) {
-      setUsers(prev => [...prev, { id: data.id, name: userForm.name, email: userForm.email, role: userForm.role, created_at: new Date().toISOString() }])
+      setUsers(prev => [...prev, { id: data.id, name: userForm.name, email: userForm.email, role: userForm.role, must_change_password: 0, created_at: new Date().toISOString() }])
       setUserForm({ name: '', email: '', password: '', role: 'teacher' })
       setSuccess('User created.')
     } else {
@@ -326,12 +366,14 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                     <th className="px-4 py-2 font-medium">Email</th>
                     <th className="px-4 py-2 font-medium">Role</th>
                     <th className="px-4 py-2 font-medium">Since</th>
-                    <th className="px-4 py-2 font-medium w-24"></th>
+                    <th className="px-4 py-2 font-medium w-40"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {users.map(u => {
                     const canEdit = isSuperAdmin || u.role !== 'superadmin'
+                    const canResetPassword = canEdit
+                    const canImpersonate = isSuperAdmin
                     return (
                       <tr key={u.id}>
                         {editingUser?.id === u.id ? (
@@ -366,6 +408,9 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                               <span className={`badge ${roleBadge(u.role)}`}>
                                 {roleLabel(u.role)}
                               </span>
+                              {u.must_change_password ? (
+                                <span className="badge bg-amber-100 text-amber-800 ml-1.5">Temp password</span>
+                              ) : null}
                             </td>
                             <td className="px-4 py-2 text-gray-400 text-xs">
                               {new Date(u.created_at).toLocaleDateString('en-GB', { timeZone: 'Australia/Darwin' })}
@@ -373,6 +418,24 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                             <td className="px-4 py-2 flex gap-3">
                               {canEdit && (
                                 <button onClick={() => setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role })} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                              )}
+                              {canResetPassword && (
+                                <button
+                                  onClick={() => resetUserPassword(u)}
+                                  disabled={userActionLoading === u.id}
+                                  className="text-amber-600 hover:text-amber-800 text-xs"
+                                >
+                                  Reset
+                                </button>
+                              )}
+                              {canImpersonate && (
+                                <button
+                                  onClick={() => impersonateUser(u)}
+                                  disabled={userActionLoading === u.id}
+                                  className="text-purple-600 hover:text-purple-800 text-xs"
+                                >
+                                  Login As
+                                </button>
                               )}
                               {canEdit && (
                                 <button onClick={() => deleteUser(u.id, u.name)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>

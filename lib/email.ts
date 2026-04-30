@@ -420,3 +420,30 @@ export async function sendMaintenanceAssignedNotification(params: {
   `
   await sendMail(assigneeEmail, `Maintenance assigned — ${assetTag}`, baseTemplate('Maintenance Assigned', body))
 }
+
+// ── 7. Admin temporary password reset ───────────────────────────────────────
+
+export async function sendTemporaryPasswordEmail(params: {
+  toEmail: string
+  toName: string
+  temporaryPassword: string
+  resetByName: string
+}) {
+  const { toEmail, toName, temporaryPassword, resetByName } = params
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${toName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      ${resetByName} has reset your MPS Asset Manager password.
+    </p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <tr><td style="padding:16px;">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          ${row('Temporary Password', temporaryPassword)}
+          ${row('Next Step', 'Sign in and choose a new password.')}
+        </table>
+      </td></tr>
+    </table>
+    <p style="margin:0;color:#6b7280;font-size:13px;">This temporary password must be changed the next time you sign in.</p>
+  `
+  await sendMail(toEmail, 'Your MPS Asset Manager password was reset', baseTemplate('Temporary Password', body))
+}

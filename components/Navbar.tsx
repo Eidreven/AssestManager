@@ -103,7 +103,7 @@ const NAV_LINKS = [
 ]
 
 interface NavbarProps {
-  user: { name: string; email: string; role: string }
+  user: { id: number; name: string; email: string; role: string; impersonatedByName?: string }
 }
 
 export default function Navbar({ user }: NavbarProps) {
@@ -113,8 +113,15 @@ export default function Navbar({ user }: NavbarProps) {
   const { theme, toggle } = useTheme()
 
   async function handleLogout() {
+    sessionStorage.removeItem(`password-change-skipped-${user.id}`)
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
+    router.refresh()
+  }
+
+  async function stopImpersonating() {
+    await fetch('/api/auth/stop-impersonating', { method: 'POST' })
+    router.push('/admin')
     router.refresh()
   }
 
@@ -162,6 +169,14 @@ export default function Navbar({ user }: NavbarProps) {
         {/* User */}
         <div className="px-3 pb-4 border-t border-blue-800 pt-4">
           <div className="px-3 py-2 mb-2">
+            {user.impersonatedByName && (
+              <div className="mb-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2 py-1.5">
+                <p className="text-xs text-amber-200">Logged in as user</p>
+                <button onClick={stopImpersonating} className="text-xs text-white underline">
+                  Back to {user.impersonatedByName}
+                </button>
+              </div>
+            )}
             <p className="text-sm font-medium text-white truncate">{user.name}</p>
             <p className="text-xs text-blue-300 truncate">{user.email}</p>
             <span className="mt-1 inline-block text-xs text-blue-400 capitalize">
@@ -223,6 +238,14 @@ export default function Navbar({ user }: NavbarProps) {
                 </Link>
               )
             })}
+            {user.impersonatedByName && (
+              <button
+                onClick={stopImpersonating}
+                className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-amber-200 hover:bg-blue-800 hover:text-white"
+              >
+                Back to {user.impersonatedByName}
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-800 hover:text-white"

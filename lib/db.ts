@@ -186,6 +186,7 @@ async function initSchema() {
     `ALTER TABLE requests ADD COLUMN requester_phone TEXT`,
     `ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`,
     `ALTER TABLE assets ADD COLUMN created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`,
   ])
 
   // ── Batch 3: Indexes (one HTTP call) ─────────────────────────────────────
@@ -220,6 +221,7 @@ export interface User {
   email: string
   password_hash: string
   role: 'superadmin' | 'admin' | 'teacher'
+  must_change_password: number
   created_at: string
 }
 
@@ -442,8 +444,8 @@ export const db = {
     const r = await sql('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)', [name, email, passwordHash, role])
     return r.lastInsertRowid!
   },
-  async updateUserPassword(id: number, passwordHash: string): Promise<void> {
-    await sql('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id])
+  async updateUserPassword(id: number, passwordHash: string, mustChangePassword = false): Promise<void> {
+    await sql('UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ?', [passwordHash, mustChangePassword ? 1 : 0, id])
   },
   async updateUser(id: number, name: string, email: string, role: string): Promise<void> {
     await sql('UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?', [name, email, role, id])
@@ -464,15 +466,15 @@ export const db = {
     await sql('UPDATE password_reset_tokens SET used = 1 WHERE token = ?', [token])
   },
   async getAllUsers(): Promise<Omit<User, 'password_hash'>[]> {
-    const r = await sql('SELECT id, name, email, role, created_at FROM users ORDER BY name')
+    const r = await sql('SELECT id, name, email, role, must_change_password, created_at FROM users ORDER BY name')
     return r.rows as unknown as Omit<User, 'password_hash'>[]
   },
   async getUserByName(name: string): Promise<Omit<User, 'password_hash'> | undefined> {
-    const r = await sql('SELECT id, name, email, role, created_at FROM users WHERE name = ? LIMIT 1', [name])
+    const r = await sql('SELECT id, name, email, role, must_change_password, created_at FROM users WHERE name = ? LIMIT 1', [name])
     return r.rows[0] as unknown as Omit<User, 'password_hash'> | undefined
   },
   async getTeachers(): Promise<Omit<User, 'password_hash'>[]> {
-    const r = await sql("SELECT id, name, email, role, created_at FROM users WHERE role = 'teacher' ORDER BY name")
+    const r = await sql("SELECT id, name, email, role, must_change_password, created_at FROM users WHERE role = 'teacher' ORDER BY name")
     return r.rows as unknown as Omit<User, 'password_hash'>[]
   },
 

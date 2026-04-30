@@ -11,6 +11,9 @@ export interface TokenPayload {
   email: string
   name: string
   role: 'superadmin' | 'admin' | 'teacher'
+  mustChangePassword?: boolean
+  impersonatedBy?: number
+  impersonatedByName?: string
 }
 
 export function signToken(payload: TokenPayload): string {

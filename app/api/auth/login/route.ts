@@ -27,12 +27,13 @@ export async function POST(req: NextRequest) {
     email: user.email,
     name: user.name,
     role: user.role as 'superadmin' | 'admin' | 'teacher',
+    mustChangePassword: Boolean(user.must_change_password),
   })
 
   setAuthCookie(token)
 
   return NextResponse.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: { id: user.id, name: user.name, email: user.email, role: user.role, mustChangePassword: Boolean(user.must_change_password) },
   })
   } catch (err) {
     console.error('Login error:', err)
