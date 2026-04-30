@@ -19,6 +19,18 @@ function roleBadge(role: string) {
   return 'bg-green-100 text-green-700'
 }
 
+function actionButtonClass(color: 'blue' | 'amber' | 'purple' | 'red' | 'green' | 'gray') {
+  const colors = {
+    blue: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300',
+    amber: 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300',
+    purple: 'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-300',
+    red: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-300',
+    green: 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-950 dark:text-green-300',
+    gray: 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  }
+  return `inline-flex items-center justify-center rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${colors[color]}`
+}
+
 export default function AdminPage({ isSuperAdmin }: Props) {
   const [locations, setLocations] = useState<Location[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -358,15 +370,16 @@ export default function AdminPage({ isSuperAdmin }: Props) {
           </form>
 
           {users.length > 0 && (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
+            <>
+            <div className="hidden md:block border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm table-fixed">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr className="text-left text-gray-500">
-                    <th className="px-4 py-2 font-medium">Name</th>
-                    <th className="px-4 py-2 font-medium">Email</th>
-                    <th className="px-4 py-2 font-medium">Role</th>
-                    <th className="px-4 py-2 font-medium">Since</th>
-                    <th className="px-4 py-2 font-medium w-40"></th>
+                    <th className="px-4 py-3 font-medium w-[22%]">Name</th>
+                    <th className="px-4 py-3 font-medium w-[28%]">Email</th>
+                    <th className="px-4 py-3 font-medium w-[20%]">Role</th>
+                    <th className="px-4 py-3 font-medium w-[12%]">Since</th>
+                    <th className="px-4 py-3 font-medium w-[18%] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -378,15 +391,15 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                       <tr key={u.id}>
                         {editingUser?.id === u.id ? (
                           <>
-                            <td className="px-4 py-2">
+                            <td className="px-4 py-3">
                               <input className="input py-1 text-sm" value={editingUser.name}
                                 onChange={e => setEditingUser(f => f ? { ...f, name: e.target.value } : f)} />
                             </td>
-                            <td className="px-4 py-2">
+                            <td className="px-4 py-3">
                               <input type="email" className="input py-1 text-sm" value={editingUser.email}
                                 onChange={e => setEditingUser(f => f ? { ...f, email: e.target.value } : f)} />
                             </td>
-                            <td className="px-4 py-2">
+                            <td className="px-4 py-3">
                               <select className="input py-1 text-sm" value={editingUser.role}
                                 onChange={e => setEditingUser(f => f ? { ...f, role: e.target.value } : f)}>
                                 <option value="teacher">Teacher</option>
@@ -394,52 +407,58 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                                 {isSuperAdmin && <option value="superadmin">Super Admin</option>}
                               </select>
                             </td>
-                            <td className="px-4 py-2 text-gray-400 text-xs">—</td>
-                            <td className="px-4 py-2 flex gap-2">
-                              <button onClick={saveEditUser} disabled={userEditLoading} className="text-green-600 hover:text-green-800 text-xs font-medium">Save</button>
-                              <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+                            <td className="px-4 py-3 text-gray-400 text-xs">—</td>
+                            <td className="px-4 py-3">
+                              <div className="flex justify-end gap-2">
+                                <button onClick={saveEditUser} disabled={userEditLoading} className={actionButtonClass('green')}>Save</button>
+                                <button onClick={() => setEditingUser(null)} className={actionButtonClass('gray')}>Cancel</button>
+                              </div>
                             </td>
                           </>
                         ) : (
                           <>
-                            <td className="px-4 py-2 font-medium">{u.name}</td>
-                            <td className="px-4 py-2 text-gray-500">{u.email}</td>
-                            <td className="px-4 py-2">
-                              <span className={`badge ${roleBadge(u.role)}`}>
-                                {roleLabel(u.role)}
-                              </span>
-                              {u.must_change_password ? (
-                                <span className="badge bg-amber-100 text-amber-800 ml-1.5">Temp password</span>
-                              ) : null}
+                            <td className="px-4 py-3 font-medium truncate">{u.name}</td>
+                            <td className="px-4 py-3 text-gray-500 truncate">{u.email}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className={`badge ${roleBadge(u.role)}`}>
+                                  {roleLabel(u.role)}
+                                </span>
+                                {u.must_change_password ? (
+                                  <span className="badge bg-amber-100 text-amber-800">Temp password</span>
+                                ) : null}
+                              </div>
                             </td>
-                            <td className="px-4 py-2 text-gray-400 text-xs">
+                            <td className="px-4 py-3 text-gray-400 text-xs">
                               {new Date(u.created_at).toLocaleDateString('en-GB', { timeZone: 'Australia/Darwin' })}
                             </td>
-                            <td className="px-4 py-2 flex gap-3">
-                              {canEdit && (
-                                <button onClick={() => setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role })} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
-                              )}
-                              {canResetPassword && (
-                                <button
-                                  onClick={() => resetUserPassword(u)}
-                                  disabled={userActionLoading === u.id}
-                                  className="text-amber-600 hover:text-amber-800 text-xs"
-                                >
-                                  Reset
-                                </button>
-                              )}
-                              {canImpersonate && (
-                                <button
-                                  onClick={() => impersonateUser(u)}
-                                  disabled={userActionLoading === u.id}
-                                  className="text-purple-600 hover:text-purple-800 text-xs"
-                                >
-                                  Login As
-                                </button>
-                              )}
-                              {canEdit && (
-                                <button onClick={() => deleteUser(u.id, u.name)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
-                              )}
+                            <td className="px-4 py-3">
+                              <div className="flex justify-end gap-1.5 flex-wrap">
+                                {canEdit && (
+                                  <button onClick={() => setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role })} className={actionButtonClass('blue')}>Edit</button>
+                                )}
+                                {canResetPassword && (
+                                  <button
+                                    onClick={() => resetUserPassword(u)}
+                                    disabled={userActionLoading === u.id}
+                                    className={actionButtonClass('amber')}
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                                {canImpersonate && (
+                                  <button
+                                    onClick={() => impersonateUser(u)}
+                                    disabled={userActionLoading === u.id}
+                                    className={actionButtonClass('purple')}
+                                  >
+                                    Login As
+                                  </button>
+                                )}
+                                {canEdit && (
+                                  <button onClick={() => deleteUser(u.id, u.name)} className={actionButtonClass('red')}>Delete</button>
+                                )}
+                              </div>
                             </td>
                           </>
                         )}
@@ -449,6 +468,81 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                 </tbody>
               </table>
             </div>
+
+            <div className="md:hidden space-y-3">
+              {users.map(u => {
+                const canEdit = isSuperAdmin || u.role !== 'superadmin'
+                const canResetPassword = canEdit
+                const canImpersonate = isSuperAdmin
+                const isEditing = editingUser?.id === u.id
+                return (
+                  <div key={u.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:bg-gray-900 dark:border-gray-700">
+                    {isEditing ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="label">Name</label>
+                          <input className="input" value={editingUser.name}
+                            onChange={e => setEditingUser(f => f ? { ...f, name: e.target.value } : f)} />
+                        </div>
+                        <div>
+                          <label className="label">Email</label>
+                          <input type="email" className="input" value={editingUser.email}
+                            onChange={e => setEditingUser(f => f ? { ...f, email: e.target.value } : f)} />
+                        </div>
+                        <div>
+                          <label className="label">Role</label>
+                          <select className="input" value={editingUser.role}
+                            onChange={e => setEditingUser(f => f ? { ...f, role: e.target.value } : f)}>
+                            <option value="teacher">Teacher</option>
+                            {isSuperAdmin && <option value="admin">Admin</option>}
+                            {isSuperAdmin && <option value="superadmin">Super Admin</option>}
+                          </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={saveEditUser} disabled={userEditLoading} className={actionButtonClass('green')}>Save</button>
+                          <button onClick={() => setEditingUser(null)} className={actionButtonClass('gray')}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 truncate">{u.name}</p>
+                            <p className="text-sm text-gray-500 truncate">{u.email}</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Since {new Date(u.created_at).toLocaleDateString('en-GB', { timeZone: 'Australia/Darwin' })}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <span className={`badge ${roleBadge(u.role)}`}>
+                              {roleLabel(u.role)}
+                            </span>
+                            {u.must_change_password ? (
+                              <span className="badge bg-amber-100 text-amber-800">Temp password</span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-4">
+                          {canEdit && (
+                            <button onClick={() => setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role })} className={actionButtonClass('blue')}>Edit</button>
+                          )}
+                          {canResetPassword && (
+                            <button onClick={() => resetUserPassword(u)} disabled={userActionLoading === u.id} className={actionButtonClass('amber')}>Reset</button>
+                          )}
+                          {canImpersonate && (
+                            <button onClick={() => impersonateUser(u)} disabled={userActionLoading === u.id} className={actionButtonClass('purple')}>Login As</button>
+                          )}
+                          {canEdit && (
+                            <button onClick={() => deleteUser(u.id, u.name)} className={actionButtonClass('red')}>Delete</button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            </>
           )}
         </div>
 
