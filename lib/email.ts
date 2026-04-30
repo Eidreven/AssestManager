@@ -433,17 +433,20 @@ export async function sendTemporaryPasswordEmail(params: {
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${toName},</p>
     <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      ${resetByName} has reset your MPS Asset Manager password.
+      ${resetByName} has reset your MPS Asset Manager password. Use the details below to sign in.
     </p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="padding:16px;">
         <table cellpadding="0" cellspacing="0" width="100%">
+          ${row('Name', toName)}
+          ${row('Sign-in Email', toEmail)}
           ${row('Temporary Password', temporaryPassword)}
-          ${row('Next Step', 'Sign in and choose a new password.')}
+          ${row('Next Step', 'Sign in with this email and temporary password. You will be asked to choose your own password.')}
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;">This temporary password must be changed the next time you sign in.</p>
+    <p style="margin:0 0 8px;color:#374151;font-size:14px;">Please type your email address exactly as shown above when signing in.</p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">You can skip the password change prompt for now, but it will keep appearing when you sign in until you choose your own password.</p>
   `
   await sendMail(toEmail, 'Your MPS Asset Manager password was reset', baseTemplate('Temporary Password', body))
 }
