@@ -382,11 +382,11 @@ export default function AdminPage({ isSuperAdmin }: Props) {
               <table className="w-full text-sm table-fixed">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr className="text-left text-gray-500">
-                    <th className="px-4 py-3 font-medium w-[26%]">Name</th>
-                    <th className="px-4 py-3 font-medium w-[34%]">Email</th>
-                    <th className="px-4 py-3 font-medium w-[22%]">Role</th>
-                    <th className="px-4 py-3 font-medium w-[10%]">Since</th>
-                    <th className="px-4 py-3 font-medium w-[8%] text-right"></th>
+                    <th className="px-4 py-3 font-medium w-[24%]">Name</th>
+                    <th className="px-4 py-3 font-medium w-[32%]">Email</th>
+                    <th className="px-4 py-3 font-medium w-[20%]">Role</th>
+                    <th className="px-4 py-3 font-medium w-[12%]">Since</th>
+                    <th className="px-4 py-3 font-medium w-[12%] text-right">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -407,16 +407,18 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                         <td className="px-4 py-3 text-gray-400 text-xs">
                           {new Date(u.created_at).toLocaleDateString('en-GB', { timeZone: 'Australia/Darwin' })}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end">
                           <button
                             onClick={() => {
                               setSelectedUser(u)
                               setEditingUser(null)
                             }}
-                            className="btn-secondary text-xs px-3 py-1.5"
+                            className="btn-secondary text-xs px-4 py-1.5 min-w-16"
                           >
                             View
                           </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
