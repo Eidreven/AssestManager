@@ -5,6 +5,22 @@ import { sendMaintenanceAssignedNotification, sendMaintenanceStatusUpdate } from
 
 const VALID_ACTIONS = ['assign', 'start', 'hold', 'resume', 'complete'] as const
 
+type PreviousMaintenanceState = {
+  status?: 'available' | 'allocated' | 'maintenance' | 'retired'
+  location_id?: number | null
+  set_id?: number | null
+  allocation?: {
+    allocated_to: string
+    allocated_to_role?: string | null
+    allocated_by_id?: number | null
+    location_id?: number | null
+    purpose?: string | null
+    is_temporary?: boolean
+    expected_return?: string | null
+    notes?: string | null
+  } | null
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -79,7 +95,39 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     let returnLocationId: number | null = null
     let returnSetId: number | null = null
 
-    if (returnMode === 'location') {
+    if (returnMode === 'previous') {
+      if (!job.previous_state_json) {
+        return NextResponse.json({ error: 'No previous assignment was saved for this maintenance job' }, { status: 400 })
+      }
+      const previous = JSON.parse(job.previous_state_json) as PreviousMaintenanceState
+      returnLocationId = previous.location_id ?? null
+      returnSetId = previous.set_id ?? null
+
+      if (returnSetId) {
+        await db.addAssetToSet(asset.id, returnSetId)
+      } else {
+        await db.removeAssetFromSet(asset.id)
+      }
+
+      if (previous.allocation?.allocated_to) {
+        await db.createAllocation({
+          asset_id: asset.id,
+          allocated_to: previous.allocation.allocated_to,
+          allocated_to_role: previous.allocation.allocated_to_role ?? undefined,
+          allocated_by_id: previous.allocation.allocated_by_id ?? auth.userId,
+          location_id: previous.allocation.location_id ?? previous.location_id ?? undefined,
+          purpose: previous.allocation.purpose ?? undefined,
+          is_temporary: Boolean(previous.allocation.is_temporary),
+          expected_return: previous.allocation.expected_return ?? undefined,
+          notes: previous.allocation.notes ?? 'Returned from maintenance to previous allocation.',
+        })
+      } else {
+        await db.updateAsset(asset.id, {
+          status: previous.status === 'retired' ? 'retired' : 'available',
+          location_id: returnLocationId,
+        })
+      }
+    } else if (returnMode === 'location') {
       if (!body.location_id) return NextResponse.json({ error: 'location_id is required' }, { status: 400 })
       returnLocationId = Number(body.location_id)
       await db.removeAssetFromSet(asset.id)

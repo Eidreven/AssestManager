@@ -159,6 +159,30 @@ async function initSchema() {
       resolution_note TEXT,
       return_location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
       return_set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL,
+      previous_state_json TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS handover_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'draft',
+      created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      sent_at TEXT,
+      closed_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS handover_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL REFERENCES handover_sessions(id) ON DELETE CASCADE,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      allocation_id INTEGER REFERENCES allocations(id) ON DELETE SET NULL,
+      set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL,
+      holder_name TEXT NOT NULL,
+      holder_email TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      admin_notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )`,
@@ -187,6 +211,7 @@ async function initSchema() {
     `ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`,
     `ALTER TABLE assets ADD COLUMN created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE maintenance_jobs ADD COLUMN previous_state_json TEXT`,
   ])
 
   // ── Batch 3: Indexes (one HTTP call) ─────────────────────────────────────
@@ -206,6 +231,9 @@ async function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_maint_asset      ON maintenance_jobs(asset_id)`,
     `CREATE INDEX IF NOT EXISTS idx_maint_status     ON maintenance_jobs(status)`,
     `CREATE INDEX IF NOT EXISTS idx_maint_assigned   ON maintenance_jobs(assigned_to_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_handover_session ON handover_items(session_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_handover_status  ON handover_items(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_handover_holder  ON handover_items(holder_name)`,
     `CREATE INDEX IF NOT EXISTS idx_activity_user    ON activity_logs(user_id)`,
   ])
 }
@@ -340,6 +368,7 @@ export interface MaintenanceJob {
   resolution_note: string | null
   return_location_id: number | null
   return_set_id: number | null
+  previous_state_json: string | null
   created_at: string
   updated_at: string
 }
@@ -356,6 +385,48 @@ export interface MaintenanceJobWithDetails extends MaintenanceJob {
   approved_by_name: string | null
   return_location_name: string | null
   return_set_name: string | null
+}
+
+export interface HandoverSession {
+  id: number
+  title: string
+  notes: string | null
+  status: 'draft' | 'sent' | 'closed'
+  created_by_id: number | null
+  created_at: string
+  sent_at: string | null
+  closed_at: string | null
+}
+
+export interface HandoverSessionWithCounts extends HandoverSession {
+  created_by_name: string | null
+  total_items: number
+  pending_items: number
+  collected_items: number
+  missing_items: number
+  damaged_items: number
+}
+
+export interface HandoverItem {
+  id: number
+  session_id: number
+  asset_id: number
+  allocation_id: number | null
+  set_id: number | null
+  holder_name: string
+  holder_email: string | null
+  status: 'pending' | 'collected' | 'missing' | 'damaged'
+  admin_notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface HandoverItemWithDetails extends HandoverItem {
+  asset_tag: string | null
+  asset_name: string | null
+  asset_type: string | null
+  set_name: string | null
+  location_name: string | null
 }
 
 export interface AssetLog {
@@ -908,16 +979,18 @@ export const db = {
     asset_id: number; request_id?: number | null; reported_by_name?: string | null
     reported_by_email?: string | null; fault_description?: string | null; priority?: string
     approved_by_id?: number | null; assigned_to_id?: number | null; latest_note?: string | null
+    previous_state_json?: string | null
   }): Promise<number> {
     await schemaReady
     const r = await sql(`
       INSERT INTO maintenance_jobs
         (asset_id, request_id, reported_by_name, reported_by_email, fault_description,
-         priority, approved_by_id, assigned_to_id, latest_note)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         priority, approved_by_id, assigned_to_id, latest_note, previous_state_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [data.asset_id, data.request_id ?? null, data.reported_by_name ?? null,
         data.reported_by_email ?? null, data.fault_description ?? null, data.priority ?? 'medium',
-        data.approved_by_id ?? null, data.assigned_to_id ?? null, data.latest_note ?? null])
+        data.approved_by_id ?? null, data.assigned_to_id ?? null, data.latest_note ?? null,
+        data.previous_state_json ?? null])
     return r.lastInsertRowid!
   },
 
@@ -927,6 +1000,111 @@ export const db = {
     const values = Object.values(data) as SqlValue[]
     if (!fields) return
     await sql(`UPDATE maintenance_jobs SET ${fields}, updated_at = datetime('now') WHERE id = ?`, [...values, id])
+  },
+
+  // Handover
+  async getAllHandoverSessions(): Promise<HandoverSessionWithCounts[]> {
+    await schemaReady
+    const r = await sql(`
+      SELECT hs.*, u.name AS created_by_name,
+             COUNT(hi.id) AS total_items,
+             SUM(CASE WHEN hi.status = 'pending' THEN 1 ELSE 0 END) AS pending_items,
+             SUM(CASE WHEN hi.status = 'collected' THEN 1 ELSE 0 END) AS collected_items,
+             SUM(CASE WHEN hi.status = 'missing' THEN 1 ELSE 0 END) AS missing_items,
+             SUM(CASE WHEN hi.status = 'damaged' THEN 1 ELSE 0 END) AS damaged_items
+      FROM handover_sessions hs
+      LEFT JOIN users u ON hs.created_by_id = u.id
+      LEFT JOIN handover_items hi ON hi.session_id = hs.id
+      GROUP BY hs.id
+      ORDER BY hs.created_at DESC
+    `)
+    return r.rows as unknown as HandoverSessionWithCounts[]
+  },
+
+  async getHandoverSessionById(id: number): Promise<HandoverSessionWithCounts | undefined> {
+    await schemaReady
+    const r = await sql(`
+      SELECT hs.*, u.name AS created_by_name,
+             COUNT(hi.id) AS total_items,
+             SUM(CASE WHEN hi.status = 'pending' THEN 1 ELSE 0 END) AS pending_items,
+             SUM(CASE WHEN hi.status = 'collected' THEN 1 ELSE 0 END) AS collected_items,
+             SUM(CASE WHEN hi.status = 'missing' THEN 1 ELSE 0 END) AS missing_items,
+             SUM(CASE WHEN hi.status = 'damaged' THEN 1 ELSE 0 END) AS damaged_items
+      FROM handover_sessions hs
+      LEFT JOIN users u ON hs.created_by_id = u.id
+      LEFT JOIN handover_items hi ON hi.session_id = hs.id
+      WHERE hs.id = ?
+      GROUP BY hs.id
+    `, [id])
+    return r.rows[0] as unknown as HandoverSessionWithCounts | undefined
+  },
+
+  async createHandoverSession(title: string, notes: string | null, createdById: number): Promise<number> {
+    await schemaReady
+    const r = await sql(`
+      INSERT INTO handover_sessions (title, notes, created_by_id)
+      VALUES (?, ?, ?)
+    `, [title, notes, createdById])
+    return r.lastInsertRowid!
+  },
+
+  async updateHandoverSession(id: number, data: Partial<Pick<HandoverSession, 'status' | 'sent_at' | 'closed_at' | 'notes'>>): Promise<void> {
+    await schemaReady
+    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ')
+    const values = Object.values(data) as SqlValue[]
+    if (!fields) return
+    await sql(`UPDATE handover_sessions SET ${fields} WHERE id = ?`, [...values, id])
+  },
+
+  async getHandoverItems(sessionId: number): Promise<HandoverItemWithDetails[]> {
+    await schemaReady
+    const r = await sql(`
+      SELECT hi.*, a.asset_tag, a.name AS asset_name, a.type AS asset_type,
+             s.name AS set_name, l.name AS location_name
+      FROM handover_items hi
+      LEFT JOIN assets a ON hi.asset_id = a.id
+      LEFT JOIN asset_sets s ON hi.set_id = s.id
+      LEFT JOIN locations l ON a.location_id = l.id
+      WHERE hi.session_id = ?
+      ORDER BY hi.holder_name, s.name, a.asset_tag
+    `, [sessionId])
+    return r.rows as unknown as HandoverItemWithDetails[]
+  },
+
+  async getHandoverItemById(id: number): Promise<HandoverItemWithDetails | undefined> {
+    await schemaReady
+    const r = await sql(`
+      SELECT hi.*, a.asset_tag, a.name AS asset_name, a.type AS asset_type,
+             s.name AS set_name, l.name AS location_name
+      FROM handover_items hi
+      LEFT JOIN assets a ON hi.asset_id = a.id
+      LEFT JOIN asset_sets s ON hi.set_id = s.id
+      LEFT JOIN locations l ON a.location_id = l.id
+      WHERE hi.id = ?
+    `, [id])
+    return r.rows[0] as unknown as HandoverItemWithDetails | undefined
+  },
+
+  async createHandoverItem(data: {
+    session_id: number; asset_id: number; allocation_id?: number | null; set_id?: number | null
+    holder_name: string; holder_email?: string | null
+  }): Promise<number> {
+    await schemaReady
+    const r = await sql(`
+      INSERT INTO handover_items
+        (session_id, asset_id, allocation_id, set_id, holder_name, holder_email)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [data.session_id, data.asset_id, data.allocation_id ?? null, data.set_id ?? null,
+        data.holder_name, data.holder_email ?? null])
+    return r.lastInsertRowid!
+  },
+
+  async updateHandoverItem(id: number, data: Partial<Pick<HandoverItem, 'status' | 'admin_notes'>>): Promise<void> {
+    await schemaReady
+    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ')
+    const values = Object.values(data) as SqlValue[]
+    if (!fields) return
+    await sql(`UPDATE handover_items SET ${fields}, updated_at = datetime('now') WHERE id = ?`, [...values, id])
   },
 
   // Asset Logs

@@ -28,6 +28,21 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const currentAsset = await db.getAssetById(request.asset_id)
     if (set_maintenance && currentAsset) {
       const openMaintenance = await db.getOpenMaintenanceJobForAsset(request.asset_id)
+      const previousState = {
+        status: currentAsset.status,
+        location_id: currentAsset.location_id,
+        set_id: currentAsset.set_id,
+        allocation: currentAsset.current_allocation ? {
+          allocated_to: currentAsset.current_allocation.allocated_to,
+          allocated_to_role: currentAsset.current_allocation.allocated_to_role,
+          allocated_by_id: currentAsset.current_allocation.allocated_by_id,
+          location_id: currentAsset.current_allocation.location_id,
+          purpose: currentAsset.current_allocation.purpose,
+          is_temporary: Boolean(currentAsset.current_allocation.is_temporary),
+          expected_return: currentAsset.current_allocation.expected_return,
+          notes: currentAsset.current_allocation.notes,
+        } : null,
+      }
       if (currentAsset.current_allocation) {
         await db.returnAllocation(currentAsset.current_allocation.id, request.asset_id)
       }
@@ -48,6 +63,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           approved_by_id: auth.userId,
           assigned_to_id: assigned_to_id ? Number(assigned_to_id) : auth.userId,
           latest_note: handler_notes || 'Issue approved for maintenance.',
+          previous_state_json: JSON.stringify(previousState),
         })
         await db.logAssetEvent(request.asset_id, 'maintenance_approved', auth.name, auth.userId,
           `Maintenance job #${jobId} approved${handler_notes ? `: ${handler_notes}` : ''}`)

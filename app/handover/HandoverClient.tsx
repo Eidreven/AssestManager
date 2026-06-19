@@ -1,0 +1,287 @@
+'use client'
+
+import { FormEvent, useMemo, useState } from 'react'
+import Link from 'next/link'
+
+interface Session {
+  id: number
+  title: string
+  notes: string | null
+  status: 'draft' | 'sent' | 'closed'
+  created_by_name: string | null
+  created_at: string
+  sent_at: string | null
+  closed_at: string | null
+  total_items: number
+  pending_items: number
+  collected_items: number
+  missing_items: number
+  damaged_items: number
+}
+
+interface Item {
+  id: number
+  session_id: number
+  asset_id: number
+  holder_name: string
+  holder_email: string | null
+  status: 'pending' | 'collected' | 'missing' | 'damaged'
+  admin_notes: string | null
+  asset_tag: string | null
+  asset_name: string | null
+  asset_type: string | null
+  set_name: string | null
+  location_name: string | null
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  draft: 'bg-gray-100 text-gray-700',
+  sent: 'bg-blue-100 text-blue-700',
+  closed: 'bg-green-100 text-green-700',
+  pending: 'bg-yellow-100 text-yellow-800',
+  collected: 'bg-green-100 text-green-800',
+  missing: 'bg-red-100 text-red-800',
+  damaged: 'bg-amber-100 text-amber-800',
+}
+
+const ITEM_STATUSES = ['pending', 'collected', 'missing', 'damaged'] as const
+
+export default function HandoverClient({ initialSessions }: { initialSessions: Session[] }) {
+  const [sessions, setSessions] = useState(initialSessions)
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+  const [items, setItems] = useState<Item[]>([])
+  const [title, setTitle] = useState('')
+  const [notes, setNotes] = useState('')
+  const [itemNotes, setItemNotes] = useState<Record<number, string>>({})
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, Item[]>()
+    for (const item of items) {
+      const label = item.set_name ? `${item.holder_name} - ${item.set_name}` : item.holder_name
+      groups.set(label, [...(groups.get(label) ?? []), item])
+    }
+    return Array.from(groups.entries())
+  }, [items])
+
+  function formatDate(value: string | null) {
+    if (!value) return '-'
+    return new Date(value).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Australia/Darwin',
+    })
+  }
+
+  async function refreshSessions() {
+    const res = await fetch('/api/handover')
+    if (res.ok) setSessions(await res.json())
+  }
+
+  async function openSession(session: Session) {
+    setLoading(true); setError(''); setMessage('')
+    try {
+      const res = await fetch(`/api/handover/${session.id}`)
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not load handover session'); return }
+      setSelectedSession(data.session)
+      setItems(data.items)
+      setItemNotes(Object.fromEntries((data.items as Item[]).map(item => [item.id, item.admin_notes ?? ''])))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function createSession(e: FormEvent) {
+    e.preventDefault()
+    setLoading(true); setError(''); setMessage('')
+    try {
+      const res = await fetch('/api/handover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, notes }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not create handover'); return }
+      setTitle(''); setNotes('')
+      await refreshSessions()
+      setMessage('Handover session created from current allocations.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function sessionAction(action: 'send' | 'remind' | 'close') {
+    if (!selectedSession) return
+    setLoading(true); setError(''); setMessage('')
+    try {
+      const res = await fetch(`/api/handover/${selectedSession.id}/${action}`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Action failed'); return }
+      await refreshSessions()
+      await openSession(selectedSession)
+      if (action === 'send') setMessage(`Handover emails sent to ${data.emailsSent ?? 0} holder(s).`)
+      if (action === 'remind') setMessage(`Reminder sent for ${data.outstanding ?? 0} outstanding item(s).`)
+      if (action === 'close') setMessage('Handover session closed.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function updateItem(item: Item, status: Item['status']) {
+    setLoading(true); setError(''); setMessage('')
+    try {
+      const res = await fetch(`/api/handover/items/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, admin_notes: itemNotes[item.id] ?? '' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not update item'); return }
+      setItems(prev => prev.map(row => row.id === item.id ? data : row))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">End of Term Handover</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Manual collection checklist and email reminders for allocated devices.</p>
+        </div>
+        <Link href="/assets?status=allocated" className="btn-secondary text-sm">Allocated Assets</Link>
+      </div>
+
+      {message && <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{message}</div>}
+      {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+
+      <div className="grid lg:grid-cols-[320px_1fr] gap-6">
+        <div className="space-y-4">
+          <div className="card p-5 space-y-4">
+            <h2 className="font-semibold text-gray-900">Create Handover</h2>
+            <form onSubmit={createSession} className="space-y-3">
+              <div>
+                <label className="label">Title</label>
+                <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Term 2 2026 Collection" required />
+              </div>
+              <div>
+                <label className="label">Notes</label>
+                <textarea className="input resize-none" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
+              </div>
+              <button className="btn-primary w-full" disabled={loading}>{loading ? 'Creating...' : 'Create From Current Allocations'}</button>
+            </form>
+          </div>
+
+          <div className="card overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-900">Sessions</h2>
+            </div>
+            {sessions.length === 0 ? (
+              <p className="p-4 text-sm text-gray-400">No handover sessions yet.</p>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {sessions.map(session => (
+                  <button
+                    key={session.id}
+                    onClick={() => openSession(session)}
+                    className={`w-full text-left p-4 hover:bg-gray-50 ${selectedSession?.id === session.id ? 'bg-blue-50' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-gray-900 truncate">{session.title}</p>
+                      <span className={`badge ${STATUS_STYLES[session.status]}`}>{session.status}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">{session.total_items} item(s) · {formatDate(session.created_at)}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {!selectedSession ? (
+            <div className="card p-12 text-center text-gray-400">Select a handover session.</div>
+          ) : (
+            <>
+              <div className="card p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-semibold text-gray-900 text-lg">{selectedSession.title}</h2>
+                    <p className="text-sm text-gray-500">{selectedSession.notes || 'No notes.'}</p>
+                    <div className="flex flex-wrap gap-2 mt-3 text-xs">
+                      <span className="badge bg-gray-100 text-gray-700">Total {selectedSession.total_items}</span>
+                      <span className="badge bg-green-100 text-green-700">Collected {selectedSession.collected_items}</span>
+                      <span className="badge bg-yellow-100 text-yellow-800">Pending {selectedSession.pending_items}</span>
+                      <span className="badge bg-red-100 text-red-800">Missing {selectedSession.missing_items}</span>
+                      <span className="badge bg-amber-100 text-amber-800">Damaged {selectedSession.damaged_items}</span>
+                    </div>
+                  </div>
+                  <span className={`badge ${STATUS_STYLES[selectedSession.status]}`}>{selectedSession.status}</span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => sessionAction('send')} className="btn-primary text-sm" disabled={loading || selectedSession.status === 'closed'}>Send Handover Emails</button>
+                  <button onClick={() => sessionAction('remind')} className="btn-warning text-sm" disabled={loading || selectedSession.status === 'closed'}>Send Missing Reminders</button>
+                  <button onClick={() => sessionAction('close')} className="btn-secondary text-sm" disabled={loading || selectedSession.status === 'closed'}>Close Session</button>
+                </div>
+              </div>
+
+              {groupedItems.map(([group, groupItems]) => (
+                <div key={group} className="card overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                    <h3 className="font-semibold text-gray-900">{group}</h3>
+                    <p className="text-xs text-gray-500">{groupItems[0]?.holder_email || 'No email on account'}</p>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {groupItems.map(item => (
+                      <div key={item.id} className="p-4 grid lg:grid-cols-[1fr_210px] gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-blue-700 text-sm">{item.asset_tag}</span>
+                            <span className={`badge ${STATUS_STYLES[item.status]}`}>{item.status}</span>
+                          </div>
+                          <p className="font-medium text-gray-900 mt-1">{item.asset_name}</p>
+                          <p className="text-xs text-gray-500">{item.asset_type}{item.set_name ? ` · ${item.set_name}` : ''}{item.location_name ? ` · ${item.location_name}` : ''}</p>
+                          <textarea
+                            className="input resize-none mt-3"
+                            rows={2}
+                            placeholder="Collection note..."
+                            value={itemNotes[item.id] ?? ''}
+                            onChange={e => setItemNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 content-start">
+                          {ITEM_STATUSES.map(status => (
+                            <button
+                              key={status}
+                              onClick={() => updateItem(item, status)}
+                              disabled={loading}
+                              className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                                item.status === status
+                                  ? 'bg-blue-700 text-white border-blue-700'
+                                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {status}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

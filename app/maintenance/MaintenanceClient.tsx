@@ -28,6 +28,7 @@ interface Job {
   approved_by_name: string | null
   return_location_name: string | null
   return_set_name: string | null
+  previous_state_json: string | null
   created_at: string
   updated_at: string
 }
@@ -68,7 +69,7 @@ export default function MaintenanceClient({
   const [loadingId, setLoadingId] = useState<number | null>(null)
   const [notes, setNotes] = useState<Record<number, string>>({})
   const [assignees, setAssignees] = useState<Record<number, string>>({})
-  const [completeOptions, setCompleteOptions] = useState<Record<number, { mode: 'location' | 'set'; locationId: string; setId: string }>>({})
+  const [completeOptions, setCompleteOptions] = useState<Record<number, { mode: 'previous' | 'location' | 'set'; locationId: string; setId: string }>>({})
   const [error, setError] = useState('')
 
   const filtered = tab === 'all' ? jobs : jobs.filter(j => j.status === tab)
@@ -79,10 +80,11 @@ export default function MaintenanceClient({
   }, [jobs])
 
   function optionFor(id: number) {
-    return completeOptions[id] ?? { mode: 'location' as const, locationId: '', setId: '' }
+    const job = jobs.find(j => j.id === id)
+    return completeOptions[id] ?? { mode: job?.previous_state_json ? 'previous' as const : 'location' as const, locationId: '', setId: '' }
   }
 
-  function setOption(id: number, patch: Partial<{ mode: 'location' | 'set'; locationId: string; setId: string }>) {
+  function setOption(id: number, patch: Partial<{ mode: 'previous' | 'location' | 'set'; locationId: string; setId: string }>) {
     setCompleteOptions(prev => ({ ...prev, [id]: { ...optionFor(id), ...patch } }))
   }
 
@@ -230,12 +232,17 @@ export default function MaintenanceClient({
                         </div>
                         <div>
                           <label className="label">Complete back to</label>
-                          <select className="input" value={option.mode} onChange={e => setOption(job.id, { mode: e.target.value as 'location' | 'set' })}>
+                          <select className="input" value={option.mode} onChange={e => setOption(job.id, { mode: e.target.value as 'previous' | 'location' | 'set' })}>
+                            {job.previous_state_json && <option value="previous">Previous Assignment</option>}
                             <option value="location">Location</option>
                             <option value="set">Class Set</option>
                           </select>
                         </div>
-                        {option.mode === 'location' ? (
+                        {option.mode === 'previous' ? (
+                          <div className="sm:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                            Device will be returned to the teacher, class set, or location it had before maintenance.
+                          </div>
+                        ) : option.mode === 'location' ? (
                           <div className="sm:col-span-2">
                             <label className="label">Return location</label>
                             <select className="input" value={option.locationId} onChange={e => setOption(job.id, { locationId: e.target.value })}>

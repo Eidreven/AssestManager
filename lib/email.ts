@@ -450,3 +450,90 @@ export async function sendTemporaryPasswordEmail(params: {
   `
   await sendMail(toEmail, 'Your MPS Asset Manager password was reset', baseTemplate('Temporary Password', body))
 }
+
+type HandoverEmailItem = {
+  assetTag: string
+  assetName: string
+  assetType?: string | null
+  setName?: string | null
+  status?: string | null
+  notes?: string | null
+}
+
+function handoverRows(items: HandoverEmailItem[]) {
+  return items.map(item => `
+    <tr>
+      <td style="padding:7px 8px;font-family:monospace;color:#1e3a8a;font-size:13px;font-weight:600;">${item.assetTag}</td>
+      <td style="padding:7px 8px;color:#111827;font-size:13px;">${item.assetName}</td>
+      <td style="padding:7px 8px;color:#6b7280;font-size:13px;">${item.assetType ?? ''}</td>
+      <td style="padding:7px 8px;color:#6b7280;font-size:13px;">${item.setName ?? ''}</td>
+      ${item.status ? `<td style="padding:7px 8px;color:#111827;font-size:13px;font-weight:600;">${item.status}</td>` : ''}
+    </tr>
+  `).join('')
+}
+
+function handoverTable(items: HandoverEmailItem[], includeStatus = false) {
+  return `
+    <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+        <th style="padding:7px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">Tag</th>
+        <th style="padding:7px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">Device</th>
+        <th style="padding:7px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">Type</th>
+        <th style="padding:7px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">Set</th>
+        ${includeStatus ? `<th style="padding:7px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">Status</th>` : ''}
+      </tr>
+      ${handoverRows(items)}
+    </table>
+  `
+}
+
+export async function sendHandoverRequestEmail(params: {
+  toEmail: string
+  holderName: string
+  sessionTitle: string
+  items: HandoverEmailItem[]
+}) {
+  const { toEmail, holderName, sessionTitle, items } = params
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${holderName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      Please hand over the following device${items.length === 1 ? '' : 's'} for <strong>${sessionTitle}</strong>.
+    </p>
+    ${handoverTable(items)}
+    <p style="margin:0;color:#6b7280;font-size:13px;">If anything is missing or already returned, please contact the IT team.</p>
+  `
+  await sendMail(toEmail, `Device handover request — ${sessionTitle}`, baseTemplate('Device Handover Request', body))
+}
+
+export async function sendHandoverAdminSummary(params: {
+  sessionTitle: string
+  holderName?: string
+  items: HandoverEmailItem[]
+  subjectPrefix: string
+}) {
+  const { sessionTitle, holderName, items, subjectPrefix } = params
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">${subjectPrefix} for <strong>${sessionTitle}</strong>.</p>
+    ${holderName ? row('Holder', holderName) : ''}
+    ${handoverTable(items, Boolean(items[0]?.status))}
+  `
+  await sendMail(ADMIN_EMAILS, `${subjectPrefix} — ${sessionTitle}`, baseTemplate(subjectPrefix, body))
+}
+
+export async function sendHandoverMissingReminder(params: {
+  toEmail: string
+  holderName: string
+  sessionTitle: string
+  items: HandoverEmailItem[]
+}) {
+  const { toEmail, holderName, sessionTitle, items } = params
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${holderName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      The following device${items.length === 1 ? ' is' : 's are'} still marked as missing or not collected for <strong>${sessionTitle}</strong>.
+    </p>
+    ${handoverTable(items, true)}
+    <p style="margin:0;color:#6b7280;font-size:13px;">Please hand over these devices or contact the IT team.</p>
+  `
+  await sendMail(toEmail, `Missing handover items — ${sessionTitle}`, baseTemplate('Missing Handover Items', body))
+}
