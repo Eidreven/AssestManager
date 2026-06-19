@@ -514,7 +514,7 @@ export async function sendHandoverAdminSummary(params: {
   const { sessionTitle, holderName, items, subjectPrefix } = params
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">${subjectPrefix} for <strong>${sessionTitle}</strong>.</p>
-    ${holderName ? row('Holder', holderName) : ''}
+    ${holderName ? `<p style="margin:0 0 16px;color:#374151;font-size:14px;">Holder: <strong>${holderName}</strong></p>` : ''}
     ${handoverTable(items, Boolean(items[0]?.status))}
   `
   await sendMail(ADMIN_EMAILS, `${subjectPrefix} — ${sessionTitle}`, baseTemplate(subjectPrefix, body))
@@ -536,4 +536,22 @@ export async function sendHandoverMissingReminder(params: {
     <p style="margin:0;color:#6b7280;font-size:13px;">Please hand over these devices or contact the IT team.</p>
   `
   await sendMail(toEmail, `Missing handover items — ${sessionTitle}`, baseTemplate('Missing Handover Items', body))
+}
+
+export async function sendHandoverCollectedReceipt(params: {
+  toEmail: string
+  holderName: string
+  sessionTitle: string
+  items: HandoverEmailItem[]
+}) {
+  const { toEmail, holderName, sessionTitle, items } = params
+  const body = `
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${holderName},</p>
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">
+      The following device${items.length === 1 ? ' has' : 's have'} been marked as collected for <strong>${sessionTitle}</strong>.
+    </p>
+    ${handoverTable(items, true)}
+    <p style="margin:0;color:#6b7280;font-size:13px;">Please contact the IT team if anything in this list looks incorrect.</p>
+  `
+  await sendMail(toEmail, `Devices collected — ${sessionTitle}`, baseTemplate('Devices Collected', body))
 }

@@ -45,7 +45,7 @@ const STATUS_STYLES: Record<string, string> = {
   damaged: 'bg-amber-100 text-amber-800',
 }
 
-const ITEM_STATUSES = ['pending', 'collected', 'missing', 'damaged'] as const
+const REVISION_STATUSES = ['pending', 'missing', 'damaged'] as const
 
 export default function HandoverClient({ initialSessions }: { initialSessions: Session[] }) {
   const [sessions, setSessions] = useState(initialSessions)
@@ -54,6 +54,7 @@ export default function HandoverClient({ initialSessions }: { initialSessions: S
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [itemNotes, setItemNotes] = useState<Record<number, string>>({})
+  const [selectedItems, setSelectedItems] = useState<Record<number, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -93,6 +94,7 @@ export default function HandoverClient({ initialSessions }: { initialSessions: S
       setSelectedSession(data.session)
       setItems(data.items)
       setItemNotes(Object.fromEntries((data.items as Item[]).map(item => [item.id, item.admin_notes ?? ''])))
+      setSelectedItems({})
     } finally {
       setLoading(false)
     }
@@ -145,6 +147,56 @@ export default function HandoverClient({ initialSessions }: { initialSessions: S
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Could not update item'); return }
       setItems(prev => prev.map(row => row.id === item.id ? data : row))
+      setSelectedItems(prev => ({ ...prev, [item.id]: false }))
+      await refreshSessions()
+      if (selectedSession) await openSession(selectedSession)
+      setMessage(status === 'pending' ? 'Collection revised. Device is pending again.' : `Device marked as ${status}.`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function selectableItemsFor(groupItems: Item[]) {
+    return groupItems.filter(item => item.status !== 'collected')
+  }
+
+  function selectedIdsFor(groupItems: Item[]) {
+    return selectableItemsFor(groupItems)
+      .filter(item => selectedItems[item.id])
+      .map(item => item.id)
+  }
+
+  function setGroupSelection(groupItems: Item[], checked: boolean) {
+    const selectable = selectableItemsFor(groupItems)
+    setSelectedItems(prev => {
+      const next = { ...prev }
+      for (const item of selectable) next[item.id] = checked
+      return next
+    })
+  }
+
+  async function collectSelected(groupItems: Item[]) {
+    if (!selectedSession) return
+    const itemIds = selectedIdsFor(groupItems)
+    if (itemIds.length === 0) return
+
+    setLoading(true); setError(''); setMessage('')
+    try {
+      const res = await fetch(`/api/handover/${selectedSession.id}/collect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: itemIds }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not collect selected devices'); return }
+      await refreshSessions()
+      await openSession(selectedSession)
+      setSelectedItems(prev => {
+        const next = { ...prev }
+        for (const id of itemIds) delete next[id]
+        return next
+      })
+      setMessage(`Collected ${data.collected ?? itemIds.length} device(s) and sent one summary email.`)
     } finally {
       setLoading(false)
     }
@@ -276,27 +328,68 @@ export default function HandoverClient({ initialSessions }: { initialSessions: S
                       <h3 className="font-semibold text-gray-900">{group}</h3>
                       <p className="text-xs text-gray-500">{groupItems[0]?.holder_email || 'No email on account'}</p>
                     </div>
-                    {groupItems[0]?.set_id && (
+                    <div className="flex flex-wrap gap-2 self-start sm:self-auto">
                       <button
                         type="button"
-                        onClick={() => removeSet(groupItems)}
-                        disabled={loading || selectedSession.status === 'closed'}
-                        className="btn-secondary text-xs px-3 py-1.5 self-start sm:self-auto"
+                        onClick={() => setGroupSelection(groupItems, true)}
+                        disabled={loading || selectedSession.status === 'closed' || selectableItemsFor(groupItems).length === 0}
+                        className="btn-secondary text-xs px-3 py-1.5"
                       >
-                        Remove Set
+                        Select Open
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => setGroupSelection(groupItems, false)}
+                        disabled={loading || selectedSession.status === 'closed' || selectedIdsFor(groupItems).length === 0}
+                        className="btn-secondary text-xs px-3 py-1.5"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => collectSelected(groupItems)}
+                        disabled={loading || selectedSession.status === 'closed' || selectedIdsFor(groupItems).length === 0}
+                        className="btn-primary text-xs px-3 py-1.5"
+                      >
+                        Collect Selected ({selectedIdsFor(groupItems).length})
+                      </button>
+                      {groupItems[0]?.set_id && (
+                        <button
+                          type="button"
+                          onClick={() => removeSet(groupItems)}
+                          disabled={loading || selectedSession.status === 'closed'}
+                          className="btn-secondary text-xs px-3 py-1.5"
+                        >
+                          Remove Set
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="px-4 py-2 bg-white border-b border-gray-100 text-xs text-gray-500">
+                    Tick the devices being handed over, then collect them together. Use Pending, Missing, or Damaged below to revise a wrong selection.
                   </div>
                   <div className="divide-y divide-gray-100">
                     {groupItems.map(item => (
                       <div key={item.id} className="p-4 grid lg:grid-cols-[1fr_210px] gap-4">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-blue-700 text-sm">{item.asset_tag}</span>
-                            <span className={`badge ${STATUS_STYLES[item.status]}`}>{item.status}</span>
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-700 focus:ring-blue-600 disabled:opacity-50"
+                              checked={Boolean(selectedItems[item.id])}
+                              disabled={loading || selectedSession.status === 'closed' || item.status === 'collected'}
+                              onChange={e => setSelectedItems(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                              aria-label={`Select ${item.asset_tag ?? item.asset_name}`}
+                            />
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono text-blue-700 text-sm">{item.asset_tag}</span>
+                                <span className={`badge ${STATUS_STYLES[item.status]}`}>{item.status}</span>
+                              </div>
+                              <p className="font-medium text-gray-900 mt-1">{item.asset_name}</p>
+                              <p className="text-xs text-gray-500">{item.asset_type}{item.set_name ? ` · ${item.set_name}` : ''}{item.location_name ? ` · ${item.location_name}` : ''}</p>
+                            </div>
                           </div>
-                          <p className="font-medium text-gray-900 mt-1">{item.asset_name}</p>
-                          <p className="text-xs text-gray-500">{item.asset_type}{item.set_name ? ` · ${item.set_name}` : ''}{item.location_name ? ` · ${item.location_name}` : ''}</p>
                           <textarea
                             className="input resize-none mt-3"
                             rows={2}
@@ -306,11 +399,11 @@ export default function HandoverClient({ initialSessions }: { initialSessions: S
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-2 content-start">
-                          {ITEM_STATUSES.map(status => (
+                          {REVISION_STATUSES.map(status => (
                             <button
                               key={status}
                               onClick={() => updateItem(item, status)}
-                              disabled={loading}
+                              disabled={loading || selectedSession.status === 'closed'}
                               className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
                                 item.status === status
                                   ? 'bg-blue-700 text-white border-blue-700'
