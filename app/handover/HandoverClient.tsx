@@ -23,6 +23,7 @@ interface Item {
   id: number
   session_id: number
   asset_id: number
+  set_id: number | null
   holder_name: string
   holder_email: string | null
   status: 'pending' | 'collected' | 'missing' | 'damaged'
@@ -149,6 +150,41 @@ export default function HandoverClient({ initialSessions }: { initialSessions: S
     }
   }
 
+  async function removeItem(item: Item) {
+    if (!selectedSession) return
+    if (!confirm(`Remove ${item.asset_tag} from this handover session?`)) return
+    setLoading(true); setError(''); setMessage('')
+    try {
+      const res = await fetch(`/api/handover/items/${item.id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not remove item'); return }
+      setItems(prev => prev.filter(row => row.id !== item.id))
+      await refreshSessions()
+      setMessage('Device removed from handover session.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function removeSet(groupItems: Item[]) {
+    if (!selectedSession) return
+    const setId = groupItems[0]?.set_id
+    const setName = groupItems[0]?.set_name
+    if (!setId || !setName) return
+    if (!confirm(`Remove the full set "${setName}" from this handover session?`)) return
+    setLoading(true); setError(''); setMessage('')
+    try {
+      const res = await fetch(`/api/handover/${selectedSession.id}/sets/${setId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not remove set'); return }
+      setItems(prev => prev.filter(row => row.set_id !== setId))
+      await refreshSessions()
+      setMessage(`${setName} removed from handover session.`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -235,9 +271,21 @@ export default function HandoverClient({ initialSessions }: { initialSessions: S
 
               {groupedItems.map(([group, groupItems]) => (
                 <div key={group} className="card overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-                    <h3 className="font-semibold text-gray-900">{group}</h3>
-                    <p className="text-xs text-gray-500">{groupItems[0]?.holder_email || 'No email on account'}</p>
+                  <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{group}</h3>
+                      <p className="text-xs text-gray-500">{groupItems[0]?.holder_email || 'No email on account'}</p>
+                    </div>
+                    {groupItems[0]?.set_id && (
+                      <button
+                        type="button"
+                        onClick={() => removeSet(groupItems)}
+                        disabled={loading || selectedSession.status === 'closed'}
+                        className="btn-secondary text-xs px-3 py-1.5 self-start sm:self-auto"
+                      >
+                        Remove Set
+                      </button>
+                    )}
                   </div>
                   <div className="divide-y divide-gray-100">
                     {groupItems.map(item => (
@@ -272,6 +320,14 @@ export default function HandoverClient({ initialSessions }: { initialSessions: S
                               {status}
                             </button>
                           ))}
+                          <button
+                            type="button"
+                            onClick={() => removeItem(item)}
+                            disabled={loading || selectedSession.status === 'closed'}
+                            className="col-span-2 px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-medium transition-colors disabled:opacity-50"
+                          >
+                            Remove Device
+                          </button>
                         </div>
                       </div>
                     ))}

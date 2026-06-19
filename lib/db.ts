@@ -1107,6 +1107,16 @@ export const db = {
     await sql(`UPDATE handover_items SET ${fields}, updated_at = datetime('now') WHERE id = ?`, [...values, id])
   },
 
+  async deleteHandoverItem(id: number): Promise<void> {
+    await schemaReady
+    await sql(`DELETE FROM handover_items WHERE id = ?`, [id])
+  },
+
+  async deleteHandoverItemsForSet(sessionId: number, setId: number): Promise<void> {
+    await schemaReady
+    await sql(`DELETE FROM handover_items WHERE session_id = ? AND set_id = ?`, [sessionId, setId])
+  },
+
   // Asset Logs
   async logAssetEvent(assetId: number, eventType: string, actorName: string | null, actorId: number | null, detail: string | null): Promise<void> {
     await schemaReady
