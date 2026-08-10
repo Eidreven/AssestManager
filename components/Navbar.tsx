@@ -36,6 +36,15 @@ const NAV_LINKS = [
     ),
   },
   {
+    href: '/classrooms',
+    label: 'Classrooms',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16M9 7h2m2 0h2M9 11h2m2 0h2M9 15h2m2 0h2" />
+      </svg>
+    ),
+  },
+  {
     href: '/logs',
     label: 'Logs',
     adminOnly: true,

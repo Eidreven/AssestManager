@@ -30,9 +30,15 @@ await client.execute(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
+    location_type TEXT NOT NULL DEFAULT 'other',
     created_at TEXT DEFAULT (datetime('now'))
   )
 `)
+try {
+  await client.execute("ALTER TABLE locations ADD COLUMN location_type TEXT NOT NULL DEFAULT 'other'")
+} catch (error) {
+  if (!String(error).toLowerCase().includes('duplicate column name')) throw error
+}
 await client.execute(`
   CREATE TABLE IF NOT EXISTS assets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,14 +125,14 @@ if (existingStaffResult.rows.length === 0) {
 
 // ── Locations ─────────────────────────────────────────────────────────────────
 const locationList = [
-  { name: 'ICT Suite', description: 'Main computer room' },
-  { name: 'Library', description: 'School library' },
-  { name: 'Year 3 Classroom', description: "Mrs Brown's class" },
-  { name: 'Year 4 Classroom', description: "Mr Smith's class" },
-  { name: 'Year 5 Classroom', description: "Miss Davis's class" },
-  { name: 'Year 6 Classroom', description: "Mr Wilson's class" },
-  { name: 'Staff Room', description: 'Staff resource room' },
-  { name: 'Storage', description: 'Tech storage cupboard' },
+  { name: 'ICT Suite', description: 'Main computer room', type: 'other' },
+  { name: 'Library', description: 'School library', type: 'other' },
+  { name: 'Year 3 Classroom', description: "Mrs Brown's class", type: 'classroom' },
+  { name: 'Year 4 Classroom', description: "Mr Smith's class", type: 'classroom' },
+  { name: 'Year 5 Classroom', description: "Miss Davis's class", type: 'classroom' },
+  { name: 'Year 6 Classroom', description: "Mr Wilson's class", type: 'classroom' },
+  { name: 'Staff Room', description: 'Staff resource room', type: 'other' },
+  { name: 'Storage', description: 'Tech storage cupboard', type: 'other' },
 ]
 
 const locIds = {}
@@ -137,13 +143,14 @@ for (const loc of locationList) {
   })
   if (existing.rows.length === 0) {
     const result = await client.execute({
-      sql: "INSERT INTO locations (name, description) VALUES (?, ?)",
-      args: [loc.name, loc.description],
+      sql: "INSERT INTO locations (name, description, location_type) VALUES (?, ?, ?)",
+      args: [loc.name, loc.description, loc.type],
     })
     locIds[loc.name] = Number(result.lastInsertRowid)
     console.log(`Location: ${loc.name}`)
   } else {
     locIds[loc.name] = Number(existing.rows[0].id)
+    await client.execute({ sql: 'UPDATE locations SET location_type = ? WHERE id = ?', args: [loc.type, locIds[loc.name]] })
   }
 }
 

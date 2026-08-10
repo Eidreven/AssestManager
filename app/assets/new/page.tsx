@@ -12,7 +12,7 @@ const CLASSROOM_TYPES = ['Chair', 'Table', 'Desk', 'Cupboard', 'Bookshelf', 'Fri
 type AssetClass = 'it' | 'classroom'
 type TrackingMode = 'individual' | 'quantity'
 
-function initialForm(assetClass: AssetClass) {
+function initialForm(assetClass: AssetClass, locationId = '') {
   return {
     asset_class: assetClass,
     tracking_mode: 'individual' as TrackingMode,
@@ -20,7 +20,7 @@ function initialForm(assetClass: AssetClass) {
     type: assetClass === 'it' ? 'iPad' : 'Chair',
     model: '',
     serial_number: '',
-    location_id: '',
+    location_id: locationId,
     notes: '',
     purchase_date: '',
     warranty_expiry: '',
@@ -46,18 +46,20 @@ export default function NewAssetPage() {
 function NewAssetForm() {
   const searchParams = useSearchParams()
   const initialClass: AssetClass = searchParams.get('class') === 'classroom' ? 'classroom' : 'it'
+  const requestedLocation = searchParams.get('location') ?? ''
+  const classroomId = /^[1-9]\d*$/.test(requestedLocation) ? requestedLocation : ''
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [createdAsset, setCreatedAsset] = useState<{ id: number; asset_tag: string; name: string; asset_class: AssetClass } | null>(null)
-  const [form, setForm] = useState(() => initialForm(initialClass))
+  const [form, setForm] = useState(() => initialForm(initialClass, classroomId))
 
   useEffect(() => {
     fetch('/api/locations').then(r => r.json()).then(setLocations)
   }, [])
 
   const assetTypes = form.asset_class === 'it' ? IT_TYPES : CLASSROOM_TYPES
-  const backHref = `/assets?class=${form.asset_class}`
+  const backHref = classroomId ? `/classrooms/${classroomId}` : `/assets?class=${form.asset_class}`
 
   function update(key: string, value: string) {
     setForm(current => ({ ...current, [key]: value }))
@@ -149,8 +151,8 @@ function NewAssetForm() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Link href={`/asset/${createdAsset.id}`} className="btn-primary">View asset</Link>
-              <button onClick={() => { setCreatedAsset(null); setForm(initialForm(createdAsset.asset_class)) }} className="btn-secondary">Add another</button>
-              <Link href={`/assets?class=${createdAsset.asset_class}`} className="btn-secondary">Return to register</Link>
+              <button onClick={() => { setCreatedAsset(null); setForm(initialForm(createdAsset.asset_class, classroomId)) }} className="btn-secondary">Add another</button>
+              <Link href={backHref} className="btn-secondary">{classroomId ? 'Return to classroom' : 'Return to register'}</Link>
             </div>
           </div>
         ) : (

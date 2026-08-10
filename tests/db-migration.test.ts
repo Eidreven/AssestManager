@@ -9,6 +9,15 @@ test('legacy duplicate serial numbers do not block schema initialization', async
   const client = createClient({ url: `file:${databasePath}` })
 
   await client.execute(`
+    CREATE TABLE locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  await client.execute("INSERT INTO locations (name) VALUES ('Legacy Room')")
+  await client.execute(`
     CREATE TABLE assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_tag TEXT UNIQUE NOT NULL,
@@ -34,8 +43,10 @@ test('legacy duplicate serial numbers do not block schema initialization', async
   process.env.TURSO_DATABASE_URL = `file:${databasePath}`
   delete process.env.SKIP_DB_SCHEMA_INIT
   const { db } = await import('../lib/db')
-  const assets = await db.getAllAssets()
+  const [assets, locations] = await Promise.all([db.getAllAssets(), db.getAllLocations()])
 
   assert.equal(assets.length, 2)
   assert.equal(assets[0].asset_class, 'it')
+  assert.equal(locations[0].name, 'Legacy Room')
+  assert.equal(locations[0].location_type, 'other')
 })

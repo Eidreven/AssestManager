@@ -6,7 +6,7 @@ type BackupValue = string | number | null
 type BackupRow = Record<string, BackupValue>
 
 const TABLES = {
-  locations: ['id', 'name', 'description', 'created_at'],
+  locations: ['id', 'name', 'description', 'location_type', 'created_at'],
   asset_sets: ['id', 'name', 'description', 'responsible_teacher', 'location_id', 'created_at'],
   assets: [
     'id', 'asset_tag', 'name', 'type', 'model', 'serial_number', 'status', 'location_id', 'notes',
