@@ -138,6 +138,21 @@ test('allocation location filters use the allocation room', () => {
   assert.equal(excluded.sheets[0].rows.length, 0)
 })
 
+test('asset type and current holder filters preserve focused legacy reports', () => {
+  const matching = generateReport('complete-inventory', reportData(), {
+    ...DEFAULT_REPORT_FILTERS,
+    type: 'iPad',
+    teacher: 'Mrs Brown',
+  })
+  const excluded = generateReport('complete-inventory', reportData(), {
+    ...DEFAULT_REPORT_FILTERS,
+    type: 'Laptop',
+    teacher: 'Mrs Brown',
+  })
+  assert.equal(matching.sheets[0].rows.length, 1)
+  assert.equal(excluded.sheets[0].rows.length, 0)
+})
+
 test('spreadsheet exports neutralize formula-like user values', () => {
   assert.equal(safeSpreadsheetValue('=HYPERLINK("bad")'), "'=HYPERLINK(\"bad\")")
   assert.equal(safeSpreadsheetValue('+SUM(1,2)'), "'+SUM(1,2)")

@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 type ExportFormat = 'xlsx' | 'csv'
 
 interface Props {
-  teachers: string[]
+  holders: string[]
   types: string[]
   locations: Array<{ id: number; name: string; type: 'classroom' | 'other' }>
 }
@@ -32,7 +32,7 @@ function DownloadIcon() {
   )
 }
 
-export default function ReportsClient({ teachers, types, locations }: Props) {
+export default function ReportsClient({ holders, types, locations }: Props) {
   const [selectedId, setSelectedId] = useState<ReportId>('executive-pack')
   const [category, setCategory] = useState('All')
   const [search, setSearch] = useState('')
@@ -159,7 +159,7 @@ export default function ReportsClient({ teachers, types, locations }: Props) {
             <div><label className="label" htmlFor="report-status">Status</label><select id="report-status" className="input" value={status} onChange={event => setStatus(event.target.value)}><option value="all">All statuses</option><option value="available">Available</option><option value="allocated">Allocated</option><option value="maintenance">Maintenance</option><option value="retired">Retired</option></select></div>
             <div><label className="label" htmlFor="report-condition">Condition</label><select id="report-condition" className="input" value={condition} onChange={event => setCondition(event.target.value)}><option value="all">All conditions</option><option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option><option value="missing">Missing</option></select></div>
             <div><label className="label" htmlFor="report-location">Location</label><select id="report-location" className="input" value={locationId} onChange={event => setLocationId(event.target.value)}><option value="">All locations</option><optgroup label="Classrooms">{locations.filter(item => item.type === 'classroom').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</optgroup><optgroup label="Other locations">{locations.filter(item => item.type !== 'classroom').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</optgroup></select></div>
-            <div><label className="label" htmlFor="report-teacher">Current holder</label><select id="report-teacher" className="input" value={teacher} onChange={event => setTeacher(event.target.value)}><option value="">All holders</option>{teachers.map(item => <option key={item} value={item}>{item}</option>)}</select></div>
+            <div><label className="label" htmlFor="report-teacher">Current holder</label><select id="report-teacher" className="input" value={teacher} onChange={event => setTeacher(event.target.value)}><option value="">All holders</option>{holders.map(item => <option key={item} value={item}>{item}</option>)}</select></div>
             <div><label className="label" htmlFor="report-from">Activity from</label><input id="report-from" className="input" type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} /></div>
             <div><label className="label" htmlFor="report-to">Activity to</label><input id="report-to" className="input" type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} /></div>
             <div><label className="label" htmlFor="report-warranty">Warranty horizon</label><select id="report-warranty" className="input" value={warrantyDays} onChange={event => setWarrantyDays(event.target.value)}><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option><option value="180">6 months</option><option value="365">12 months</option></select></div>
