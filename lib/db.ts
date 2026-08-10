@@ -274,7 +274,9 @@ async function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_assets_type      ON assets(type)`,
     `CREATE INDEX IF NOT EXISTS idx_assets_class     ON assets(asset_class)`,
     `CREATE INDEX IF NOT EXISTS idx_assets_tracking  ON assets(tracking_mode)`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_serial ON assets(serial_number) WHERE serial_number IS NOT NULL`,
+    // Legacy registers can contain duplicate serials. API validation prevents new duplicates
+    // without making startup fail on data that predates that rule.
+    `CREATE INDEX IF NOT EXISTS idx_assets_serial_lookup ON assets(serial_number) WHERE serial_number IS NOT NULL`,
     `CREATE INDEX IF NOT EXISTS idx_requests_asset   ON requests(asset_id)`,
     `CREATE INDEX IF NOT EXISTS idx_requests_status  ON requests(status)`,
     `CREATE INDEX IF NOT EXISTS idx_requests_at      ON requests(created_at)`,
