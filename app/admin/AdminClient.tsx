@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, useRef } from 'react'
 
-interface Location { id: number; name: string; description: string | null }
+interface Location { id: number; name: string; description: string | null; location_type: 'classroom' | 'other' }
 interface User { id: number; name: string; email: string; role: string; must_change_password?: number; created_at: string }
 
 interface Props { isSuperAdmin: boolean }
@@ -34,9 +34,9 @@ function actionButtonClass(color: 'blue' | 'amber' | 'purple' | 'red' | 'green' 
 export default function AdminPage({ isSuperAdmin }: Props) {
   const [locations, setLocations] = useState<Location[]>([])
   const [users, setUsers] = useState<User[]>([])
-  const [locForm, setLocForm] = useState({ name: '', description: '' })
+  const [locForm, setLocForm] = useState<{ name: string; description: string; location_type: 'classroom' | 'other' }>({ name: '', description: '', location_type: 'classroom' })
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'teacher' })
-  const [editingLoc, setEditingLoc] = useState<{ id: number; name: string; description: string } | null>(null)
+  const [editingLoc, setEditingLoc] = useState<{ id: number; name: string; description: string; location_type: 'classroom' | 'other' } | null>(null)
   const [editingUser, setEditingUser] = useState<{ id: number; name: string; email: string; role: string } | null>(null)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [userEditLoading, setUserEditLoading] = useState(false)
@@ -66,8 +66,8 @@ export default function AdminPage({ isSuperAdmin }: Props) {
     })
     const data = await res.json()
     if (res.ok) {
-      setLocations(prev => [...prev, { id: data.id, name: locForm.name, description: locForm.description || null }])
-      setLocForm({ name: '', description: '' })
+      setLocations(prev => [...prev, { id: data.id, name: data.name, description: data.description, location_type: data.location_type }])
+      setLocForm({ name: '', description: '', location_type: 'classroom' })
       setSuccess('Location added.')
     } else {
       setError(data.error ?? 'Failed')
@@ -87,11 +87,11 @@ export default function AdminPage({ isSuperAdmin }: Props) {
     const res = await fetch(`/api/locations/${editingLoc.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editingLoc.name, description: editingLoc.description }),
+      body: JSON.stringify({ name: editingLoc.name, description: editingLoc.description, location_type: editingLoc.location_type }),
     })
     if (res.ok) {
       setLocations(prev => prev.map(l => l.id === editingLoc.id
-        ? { ...l, name: editingLoc.name, description: editingLoc.description || null }
+        ? { ...l, name: editingLoc.name, description: editingLoc.description || null, location_type: editingLoc.location_type }
         : l
       ))
       setSuccess('Location updated.')
@@ -286,18 +286,24 @@ export default function AdminPage({ isSuperAdmin }: Props) {
               value={locForm.description}
               onChange={e => setLocForm(f => ({ ...f, description: e.target.value }))}
             />
+            <select className="input w-auto min-w-40" value={locForm.location_type}
+              onChange={e => setLocForm(f => ({ ...f, location_type: e.target.value as 'classroom' | 'other' }))}>
+              <option value="classroom">Classroom</option>
+              <option value="other">Other location</option>
+            </select>
             <button type="submit" className="btn-primary" disabled={locLoading}>
               {locLoading ? 'Adding…' : 'Add Location'}
             </button>
           </form>
 
           {locations.length > 0 && (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr className="text-left text-gray-500">
                     <th className="px-4 py-2 font-medium">Name</th>
                     <th className="px-4 py-2 font-medium">Description</th>
+                    <th className="px-4 py-2 font-medium">Type</th>
                     <th className="px-4 py-2 font-medium w-16"></th>
                   </tr>
                 </thead>
@@ -314,6 +320,13 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                             <input className="input py-1 text-sm" value={editingLoc.description}
                               onChange={e => setEditingLoc(f => f ? { ...f, description: e.target.value } : f)} />
                           </td>
+                          <td className="px-4 py-2">
+                            <select className="input py-1 text-sm" value={editingLoc.location_type}
+                              onChange={e => setEditingLoc(f => f ? { ...f, location_type: e.target.value as 'classroom' | 'other' } : f)}>
+                              <option value="classroom">Classroom</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </td>
                           <td className="px-4 py-2 flex gap-2">
                             <button onClick={saveEditLocation} className="text-green-600 hover:text-green-800 text-xs font-medium">Save</button>
                             <button onClick={() => setEditingLoc(null)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
@@ -323,8 +336,9 @@ export default function AdminPage({ isSuperAdmin }: Props) {
                         <>
                           <td className="px-4 py-2 font-medium">{l.name}</td>
                           <td className="px-4 py-2 text-gray-500">{l.description ?? '—'}</td>
+                          <td className="px-4 py-2"><span className={l.location_type === 'classroom' ? 'badge bg-blue-100 text-blue-800' : 'badge bg-gray-100 text-gray-600'}>{l.location_type === 'classroom' ? 'Classroom' : 'Other'}</span></td>
                           <td className="px-4 py-2 flex gap-3">
-                            <button onClick={() => setEditingLoc({ id: l.id, name: l.name, description: l.description ?? '' })} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                            <button onClick={() => setEditingLoc({ id: l.id, name: l.name, description: l.description ?? '', location_type: l.location_type })} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
                             <button onClick={() => deleteLocation(l.id)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
                           </td>
                         </>

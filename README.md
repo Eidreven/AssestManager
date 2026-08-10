@@ -15,6 +15,14 @@ Asset management for Macfarlane Primary School, with separate registers for IT e
 
 Existing records are migrated automatically to the IT register with individual tracking.
 
+## Classroom Browser
+
+- Open **Classrooms** from the navigation to browse rooms without generating a report.
+- Each classroom shows separate **IT Assets** and **Classroom Assets** lists.
+- In **Admin > Locations**, create a classroom or edit an existing location and change its type to **Classroom**.
+- Assets remain in their original register; `location_id` only controls which classroom displays them.
+- Registering an asset from a classroom page preselects that room.
+
 ## Local Setup
 
 1. Install dependencies with `npm install`.

@@ -101,6 +101,7 @@ async function initSchema() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       description TEXT,
+      location_type TEXT NOT NULL DEFAULT 'other',
       created_at TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS assets (
@@ -260,6 +261,7 @@ async function initSchema() {
     `ALTER TABLE assets ADD COLUMN quantity_missing INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE assets ADD COLUMN purchase_cost REAL`,
     `ALTER TABLE assets ADD COLUMN supplier TEXT`,
+    `ALTER TABLE locations ADD COLUMN location_type TEXT NOT NULL DEFAULT 'other'`,
   ])
 
   // ── Batch 3: Indexes (one HTTP call) ─────────────────────────────────────
@@ -288,6 +290,7 @@ async function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_handover_status  ON handover_items(status)`,
     `CREATE INDEX IF NOT EXISTS idx_handover_holder  ON handover_items(holder_name)`,
     `CREATE INDEX IF NOT EXISTS idx_activity_user    ON activity_logs(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_location_type   ON locations(location_type)`,
   ])
 }
 
@@ -311,6 +314,7 @@ export interface Location {
   id: number
   name: string
   description: string | null
+  location_type: 'classroom' | 'other'
   created_at: string
 }
 
@@ -619,15 +623,28 @@ export const db = {
 
   // Locations
   async getAllLocations(): Promise<Location[]> {
+    await schemaReady
     const r = await sql('SELECT * FROM locations ORDER BY name')
     return r.rows as unknown as Location[]
   },
-  async createLocation(name: string, description?: string): Promise<number> {
-    const r = await sql('INSERT INTO locations (name, description) VALUES (?, ?)', [name, description ?? null])
+  async getClassrooms(): Promise<Location[]> {
+    await schemaReady
+    const r = await sql("SELECT * FROM locations WHERE location_type = 'classroom' ORDER BY name")
+    return r.rows as unknown as Location[]
+  },
+  async getLocationById(id: number): Promise<Location | undefined> {
+    await schemaReady
+    const r = await sql('SELECT * FROM locations WHERE id = ?', [id])
+    return r.rows[0] as unknown as Location | undefined
+  },
+  async createLocation(name: string, description?: string, locationType: 'classroom' | 'other' = 'other'): Promise<number> {
+    await schemaReady
+    const r = await sql('INSERT INTO locations (name, description, location_type) VALUES (?, ?, ?)', [name, description ?? null, locationType])
     return r.lastInsertRowid!
   },
-  async updateLocation(id: number, name: string, description: string | null): Promise<void> {
-    await sql('UPDATE locations SET name = ?, description = ? WHERE id = ?', [name, description, id])
+  async updateLocation(id: number, name: string, description: string | null, locationType: 'classroom' | 'other'): Promise<void> {
+    await schemaReady
+    await sql('UPDATE locations SET name = ?, description = ?, location_type = ? WHERE id = ?', [name, description, locationType, id])
   },
   async deleteLocation(id: number): Promise<void> {
     await sql('DELETE FROM locations WHERE id = ?', [id])
