@@ -22,7 +22,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
         <div className="lg:pl-0 px-4 sm:px-6 lg:px-8 pb-6 text-center space-y-0.5">
-          <p className="text-xs text-gray-300">MPS Asset Manager · v1.0-beta</p>
+          <p className="text-xs text-gray-300">MPS School Asset Register · v2.0-beta</p>
           <p className="text-xs text-gray-300">Built by <span className="font-medium">Ravindu Shamikara</span> · <span className="font-medium">@Clentura IT</span></p>
         </div>
       </main>

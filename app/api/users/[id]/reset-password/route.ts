@@ -3,8 +3,7 @@ import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { getAuthFromCookies, isAdmin, isSuperAdmin } from '@/lib/auth'
 import { sendTemporaryPasswordEmail } from '@/lib/email'
-
-const TEMPORARY_PASSWORD = 'mc2026'
+import { randomBytes } from 'crypto'
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const auth = getAuthFromCookies()
@@ -20,19 +19,21 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'Only Super Admin can reset Super Admin accounts' }, { status: 403 })
   }
 
-  const hash = await bcrypt.hash(TEMPORARY_PASSWORD, 12)
+  const temporaryPassword = `${randomBytes(9).toString('base64url')}!7a`
+  const hash = await bcrypt.hash(temporaryPassword, 12)
   await db.updateUserPassword(target.id, hash, true)
 
   try {
     await sendTemporaryPasswordEmail({
       toEmail: target.email,
       toName: target.name,
-      temporaryPassword: TEMPORARY_PASSWORD,
+      temporaryPassword,
       resetByName: auth.name,
     })
   } catch (err) {
     console.error('Temporary password email error:', err)
-    return NextResponse.json({ ok: true, emailSent: false })
+    await db.updateUserPassword(target.id, target.password_hash, Boolean(target.must_change_password))
+    return NextResponse.json({ error: 'Email could not be sent, so the password was not changed' }, { status: 502 })
   }
 
   return NextResponse.json({ ok: true, emailSent: true })

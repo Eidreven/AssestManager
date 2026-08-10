@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { sendPasswordResetEmail } from '@/lib/email'
+import { createHash, randomBytes } from 'crypto'
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,10 +16,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString() // 6-digit numeric code
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour
+    const code = randomBytes(9).toString('base64url')
+    const tokenHash = createHash('sha256').update(code).digest('hex')
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
 
-    await db.createPasswordResetToken(user.id, code, expiresAt)
+    await db.createPasswordResetToken(user.id, tokenHash, expiresAt)
 
     await sendPasswordResetEmail({
       toEmail: user.email,

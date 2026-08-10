@@ -10,19 +10,21 @@ export async function POST(req: NextRequest) {
   const { password } = await req.json()
   if (!password) return NextResponse.json({ error: 'Password is required' }, { status: 400 })
   if (password.length < 8) return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
-  if (password === 'mc2026') return NextResponse.json({ error: 'Choose a password different from the temporary password' }, { status: 400 })
 
   const user = await db.getUserById(auth.userId)
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   const hash = await bcrypt.hash(password, 12)
   await db.updateUserPassword(user.id, hash, false)
+  const updatedUser = await db.getUserById(user.id)
+  if (!updatedUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   const token = signToken({
     userId: user.id,
     email: user.email,
     name: user.name,
     role: user.role,
+    authVersion: updatedUser.auth_version,
     mustChangePassword: false,
     impersonatedBy: auth.impersonatedBy,
     impersonatedByName: auth.impersonatedByName,

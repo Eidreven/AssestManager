@@ -1,94 +1,52 @@
-# MPS Asset Manager
+# MPS School Asset Register
 
-Technology asset management system for **Macfarlane Primary School**.
+Asset management for Macfarlane Primary School, with separate registers for IT equipment and classroom assets.
 
 ## Features
 
-- **Register assets** (iPads, laptops, Chromebooks, projectors, etc.)
-- **QR code generation** – scan to view device details instantly
-- **Allocation tracking** – who has what device, since when, and where
-- **Request system** – staff can request to borrow or relocate a device
-- **Allocation logs** – full history of every device
-- **Role-based access** – Admin and Staff roles
-- **Mobile-friendly** – designed for QR scanning on phones
+- Separate IT and classroom asset registers
+- Individual tracking for devices, smartboards, fridges, and valuable equipment
+- Quantity tracking for chairs, tables, desks, and other grouped classroom items
+- Good, fair, damaged, and missing condition counts
+- QR labels, allocation history, requests, maintenance, handovers, and asset sets
+- Excel reports filtered by register, category, status, and teacher
+- Complete versioned JSON backups
+- Admin, Super Admin, and Teacher roles
 
-## Getting Started
+Existing records are migrated automatically to the IT register with individual tracking.
 
-### 1. Install dependencies
+## Local Setup
 
-```bash
-npm install
-```
+1. Install dependencies with `npm install`.
+2. Copy `.env.local.example` to `.env.local` and set the required values.
+3. Run `npm run seed` only when creating a new development database.
+4. Start the app with `npm run dev`.
 
-### 2. Seed the database (creates admin user + sample data)
-
-```bash
-npm run seed
-```
-
-**Default credentials:**
-- Admin: `admin@macfarlane.sch` / `admin1234`
-- Staff: `teacher@macfarlane.sch` / `teacher1234`
-
-> **Change these passwords immediately in a production environment.**
-
-### 3. Start the development server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-### 4. Production build
-
-```bash
-npm run build
-npm start
-```
-
----
-
-## QR Code Workflow
-
-1. Register an asset in the system (**Admin → Assets → Register Asset**)
-2. On the asset detail page, click **"Print QR Label"** or **"Download QR"**
-3. Print the label and stick it on the device
-4. Anyone can scan the QR code with their phone — they'll be prompted to log in, then shown full device details
-5. Staff can submit **Borrow** or **Relocation** requests directly from the scan page
-6. Admins review and approve/reject requests from the **Requests** page
-
----
-
-## Environment Variables
-
-Create a `.env.local` file to override defaults:
+Required environment variables:
 
 ```env
-JWT_SECRET=your-very-secure-secret-here
+JWT_SECRET=at-least-32-random-characters
+TURSO_DATABASE_URL=libsql://your-database.turso.io
+TURSO_AUTH_TOKEN=your-turso-auth-token
 ```
 
----
+Email notifications are optional and use `RESEND_API_KEY` and `FROM_EMAIL`.
 
-## Project Structure
+## Verification
 
+```bash
+npm test
+npm run typecheck
+npm run build
 ```
-├── app/
-│   ├── dashboard/          # Overview with stats
-│   ├── assets/             # Assets list + register new
-│   ├── asset/[id]/         # Asset detail (QR scan lands here)
-│   │   └── qr/             # Printable QR label page
-│   ├── logs/               # Full allocation history
-│   ├── requests/           # Admin request management
-│   ├── admin/              # Locations & user management
-│   └── api/                # REST API routes
-├── lib/
-│   ├── db.ts               # SQLite database layer
-│   └── auth.ts             # JWT authentication
-├── components/
-│   ├── Navbar.tsx
-│   └── AppShell.tsx
-├── data/                   # SQLite database file (auto-created)
-└── scripts/
-    └── seed.mjs            # Database seeder
-```
+
+## Tracking Policy
+
+- Use individual tracking for assets with a serial number, warranty, meaningful value, or unique maintenance history.
+- Use quantity tracking for groups of interchangeable classroom items in one location.
+- Smartboards remain in the IT register.
+- A quantity record's condition counts must always equal its total quantity.
+
+## Database
+
+The application uses Turso, a hosted SQLite-compatible database. Schema upgrades run automatically and preserve existing records.

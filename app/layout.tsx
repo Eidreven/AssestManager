@@ -3,8 +3,8 @@ import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
 
 export const metadata: Metadata = {
-  title: 'MPS Asset Manager',
-  description: 'Macfarlane Primary School – Technology Asset Management',
+  title: 'MPS School Asset Register',
+  description: 'IT and classroom asset management for Macfarlane Primary School',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

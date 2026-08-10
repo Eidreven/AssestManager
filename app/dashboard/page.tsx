@@ -26,10 +26,14 @@ export default async function DashboardPage() {
   ])
   const recentAllocations = allAllocations.slice(0, 5)
   const recentPending = pendingRequests.slice(0, 5)
+  const itAssets = assets.filter(asset => asset.asset_class === 'it')
+  const classroomAssets = assets.filter(asset => asset.asset_class === 'classroom')
+  const classroomItems = classroomAssets.reduce((total, asset) => total + asset.quantity_total, 0)
+  const totalItems = assets.reduce((total, asset) => total + asset.quantity_total, 0)
 
   // Group assets by type
   const byType: Record<string, number> = {}
-  assets.forEach(a => { byType[a.type] = (byType[a.type] ?? 0) + 1 })
+  assets.forEach(a => { byType[a.type] = (byType[a.type] ?? 0) + a.quantity_total })
 
   return (
     <AppShell>
@@ -51,11 +55,12 @@ export default async function DashboardPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <StatCard label="Total Assets" value={stats.total} color="text-gray-900" href="/assets" />
-          <StatCard label="Available" value={stats.available} color="text-green-600" href="/assets?status=available" />
-          <StatCard label="Allocated" value={stats.allocated} color="text-blue-600" href="/assets?status=allocated" />
-          <StatCard label="Maintenance" value={stats.maintenance} color="text-amber-600" href="/assets?status=maintenance" />
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+          <StatCard label="IT Assets" value={itAssets.length} color="text-blue-700" href="/assets?class=it" />
+          <StatCard label="Classroom Items" value={classroomItems} color="text-amber-700" href="/assets?class=classroom" />
+          <StatCard label="IT Available" value={itAssets.filter(asset => asset.status === 'available').length} color="text-green-600" href="/assets?class=it&status=available" />
+          <StatCard label="IT Allocated" value={itAssets.filter(asset => asset.status === 'allocated').length} color="text-blue-600" href="/assets?class=it&status=allocated" />
+          <StatCard label="In Maintenance" value={stats.maintenance} color="text-amber-600" href="/assets?class=it&status=maintenance" />
           <StatCard label="Pending Requests" value={stats.pendingRequests} color="text-red-600" href="/requests" />
         </div>
 
@@ -74,7 +79,7 @@ export default async function DashboardPage() {
                       <div className="w-32 bg-gray-100 rounded-full h-2">
                         <div
                           className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${Math.round((count / stats.total) * 100)}%` }}
+                          style={{ width: `${totalItems > 0 ? Math.round((count / totalItems) * 100) : 0}%` }}
                         />
                       </div>
                       <span className="text-sm font-medium text-gray-900 w-6 text-right">{count}</span>

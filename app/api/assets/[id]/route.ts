@@ -20,10 +20,34 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const id = Number(params.id)
   const body = await req.json()
 
-  const allowed = ['asset_tag', 'name', 'type', 'model', 'serial_number', 'status', 'location_id', 'notes', 'purchase_date', 'warranty_expiry']
+  const allowed = [
+    'asset_tag', 'name', 'type', 'model', 'serial_number', 'status', 'location_id', 'notes',
+    'purchase_date', 'warranty_expiry', 'asset_class', 'tracking_mode', 'quantity_total',
+    'condition', 'quantity_good', 'quantity_fair', 'quantity_damaged', 'quantity_missing',
+    'purchase_cost', 'supplier',
+  ]
   const update: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in body) update[key] = body[key] === '' ? null : body[key]
+  }
+  const trackingMode = String(update.tracking_mode ?? body.tracking_mode ?? 'individual')
+  if (trackingMode === 'individual') {
+    const condition = String(update.condition ?? body.condition ?? 'good')
+    update.quantity_total = 1
+    update.quantity_good = condition === 'good' ? 1 : 0
+    update.quantity_fair = condition === 'fair' ? 1 : 0
+    update.quantity_damaged = condition === 'damaged' ? 1 : 0
+    update.quantity_missing = condition === 'missing' ? 1 : 0
+  }
+  const total = Number(update.quantity_total ?? 1)
+  const conditionCounts = ['quantity_good', 'quantity_fair', 'quantity_damaged', 'quantity_missing']
+    .map(key => Number(update[key] ?? 0))
+  if (!['it', 'classroom'].includes(String(update.asset_class ?? body.asset_class ?? 'it')) ||
+      !['individual', 'quantity'].includes(trackingMode)) {
+    return NextResponse.json({ error: 'Invalid asset classification' }, { status: 400 })
+  }
+  if (trackingMode === 'quantity' && (!Number.isInteger(total) || total < 1 || conditionCounts.some(value => !Number.isInteger(value) || value < 0) || conditionCounts.reduce((a, b) => a + b, 0) !== total)) {
+    return NextResponse.json({ error: 'Condition quantities must be whole numbers that equal the total quantity' }, { status: 400 })
   }
 
   // Enforce serial number uniqueness (exclude self)
@@ -49,6 +73,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       name: 'Name', type: 'Type', model: 'Model', asset_tag: 'Asset tag',
       serial_number: 'Serial number', notes: 'Notes',
       purchase_date: 'Purchase date', warranty_expiry: 'Warranty expiry',
+      asset_class: 'Asset class', tracking_mode: 'Tracking mode', quantity_total: 'Total quantity',
+      condition: 'Condition', quantity_good: 'Good', quantity_fair: 'Fair',
+      quantity_damaged: 'Damaged', quantity_missing: 'Missing', purchase_cost: 'Purchase cost', supplier: 'Supplier',
     }
 
     // Status change — separate event type

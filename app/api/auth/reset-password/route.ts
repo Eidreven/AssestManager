@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+import { createHash } from 'crypto'
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,7 +9,8 @@ export async function POST(req: NextRequest) {
     if (!token || !password) return NextResponse.json({ error: 'Token and password are required' }, { status: 400 })
     if (password.length < 8) return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
 
-    const record = await db.getPasswordResetToken(token)
+    const tokenHash = createHash('sha256').update(String(token)).digest('hex')
+    const record = await db.getPasswordResetToken(tokenHash)
 
     if (!record) return NextResponse.json({ error: 'Invalid or expired reset code' }, { status: 400 })
     if (record.used) return NextResponse.json({ error: 'This reset code has already been used' }, { status: 400 })
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
 
     const hash = await bcrypt.hash(password, 12)
     await db.updateUserPassword(record.user_id, hash)
-    await db.markTokenUsed(token)
+    await db.markTokenUsed(tokenHash)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

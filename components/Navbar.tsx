@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from './ThemeProvider'
 
 const NAV_LINKS = [
@@ -17,12 +17,21 @@ const NAV_LINKS = [
     ),
   },
   {
-    href: '/assets',
-    label: 'Assets',
+    href: '/assets?class=it',
+    label: 'IT Assets',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
           d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+      </svg>
+    ),
+  },
+  {
+    href: '/assets?class=classroom',
+    label: 'Classroom Assets',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 21V10m16 11V10M2 10h20M6 10V5a2 2 0 012-2h8a2 2 0 012 2v5M8 14h8v7H8z" />
       </svg>
     ),
   },
@@ -119,6 +128,7 @@ interface NavbarProps {
 
 export default function Navbar({ user }: NavbarProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const { theme, toggle } = useTheme()
@@ -152,7 +162,7 @@ export default function Navbar({ user }: NavbarProps) {
               </svg>
             </div>
             <div>
-              <p className="font-bold text-sm leading-tight">MPS Assets</p>
+              <p className="font-bold text-sm leading-tight">MPS Asset Register</p>
               <p className="text-blue-300 text-xs">Macfarlane Primary</p>
             </div>
           </div>
@@ -161,7 +171,9 @@ export default function Navbar({ user }: NavbarProps) {
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1">
           {links.map(link => {
-            const active = pathname === link.href || pathname.startsWith(link.href + '/')
+            const active = link.href.startsWith('/assets?')
+              ? pathname.startsWith('/assets') && (searchParams.get('class') ?? 'it') === (link.href.includes('classroom') ? 'classroom' : 'it')
+              : pathname === link.href || pathname.startsWith(link.href + '/')
             return (
               <Link
                 key={link.href}
@@ -218,7 +230,7 @@ export default function Navbar({ user }: NavbarProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
           </svg>
-          <span className="font-bold text-sm">MPS Assets</span>
+          <span className="font-bold text-sm">MPS Asset Register</span>
         </div>
         <button onClick={() => setMobileOpen(!mobileOpen)} className="p-1 rounded-lg hover:bg-blue-800">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -234,7 +246,9 @@ export default function Navbar({ user }: NavbarProps) {
         <div className="lg:hidden fixed inset-0 z-20 pt-14" onClick={() => setMobileOpen(false)}>
           <div className="absolute top-14 left-0 right-0 bg-blue-900 dark:bg-gray-900 border-t border-blue-800 dark:border-gray-700 px-3 py-3 space-y-1 shadow-xl">
             {links.map(link => {
-              const active = pathname === link.href || pathname.startsWith(link.href + '/')
+              const active = link.href.startsWith('/assets?')
+                ? pathname.startsWith('/assets') && (searchParams.get('class') ?? 'it') === (link.href.includes('classroom') ? 'classroom' : 'it')
+                : pathname === link.href || pathname.startsWith(link.href + '/')
               return (
                 <Link
                   key={link.href}
