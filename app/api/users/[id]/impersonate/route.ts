@@ -18,6 +18,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     email: target.email,
     name: target.name,
     role: target.role,
+    authVersion: target.auth_version,
     mustChangePassword: false,
     impersonatedBy: auth.userId,
     impersonatedByName: auth.name,

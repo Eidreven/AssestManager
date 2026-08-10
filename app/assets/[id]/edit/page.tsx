@@ -9,9 +9,13 @@ interface Asset {
   id: number; asset_tag: string; name: string; type: string; model?: string
   serial_number?: string; location_id?: number; status: string; notes?: string
   purchase_date?: string; warranty_expiry?: string
+  asset_class: 'it' | 'classroom'; tracking_mode: 'individual' | 'quantity'
+  quantity_total: number; condition: string; quantity_good: number; quantity_fair: number
+  quantity_damaged: number; quantity_missing: number; purchase_cost?: number; supplier?: string
 }
 
-const ASSET_TYPES = ['iPad', 'Laptop', 'Chromebook', 'Desktop', 'Printer', 'Projector', 'Camera', 'Monitor', 'Tablet', 'Other']
+const IT_TYPES = ['iPad', 'Laptop', 'Chromebook', 'Desktop', 'Printer', 'Projector', 'Smartboard', 'Camera', 'Monitor', 'Tablet', 'Other']
+const CLASSROOM_TYPES = ['Chair', 'Table', 'Desk', 'Cupboard', 'Bookshelf', 'Fridge', 'Whiteboard', 'Storage', 'Appliance', 'Other']
 const STATUSES = ['available', 'allocated', 'maintenance', 'retired']
 
 function tagPrefix(type: string) { return type.substring(0, 3).toUpperCase() }
@@ -31,6 +35,9 @@ export default function EditAssetPage() {
   const [form, setForm] = useState({
     asset_tag: '', name: '', type: 'iPad', model: '', serial_number: '',
     location_id: '', status: 'available', notes: '', purchase_date: '', warranty_expiry: '',
+    asset_class: 'it' as 'it' | 'classroom', tracking_mode: 'individual' as 'individual' | 'quantity',
+    quantity_total: '1', condition: 'good', quantity_good: '1', quantity_fair: '0',
+    quantity_damaged: '0', quantity_missing: '0', purchase_cost: '', supplier: '',
   })
 
   useEffect(() => {
@@ -51,6 +58,16 @@ export default function EditAssetPage() {
         notes: a.notes ?? '',
         purchase_date: a.purchase_date ?? '',
         warranty_expiry: a.warranty_expiry ?? '',
+        asset_class: a.asset_class ?? 'it',
+        tracking_mode: a.tracking_mode ?? 'individual',
+        quantity_total: String(a.quantity_total ?? 1),
+        condition: a.condition ?? 'good',
+        quantity_good: String(a.quantity_good ?? 1),
+        quantity_fair: String(a.quantity_fair ?? 0),
+        quantity_damaged: String(a.quantity_damaged ?? 0),
+        quantity_missing: String(a.quantity_missing ?? 0),
+        purchase_cost: a.purchase_cost != null ? String(a.purchase_cost) : '',
+        supplier: a.supplier ?? '',
       })
     })
   }, [id])
@@ -83,7 +100,16 @@ export default function EditAssetPage() {
       const res = await fetch(`/api/assets/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, location_id: form.location_id ? Number(form.location_id) : null }),
+        body: JSON.stringify({
+          ...form,
+          location_id: form.location_id ? Number(form.location_id) : null,
+          quantity_total: Number(form.quantity_total),
+          quantity_good: Number(form.quantity_good),
+          quantity_fair: Number(form.quantity_fair),
+          quantity_damaged: Number(form.quantity_damaged),
+          quantity_missing: Number(form.quantity_missing),
+          purchase_cost: form.purchase_cost ? Number(form.purchase_cost) : null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed'); return }
@@ -95,7 +121,7 @@ export default function EditAssetPage() {
   async function handleDelete() {
     if (!confirm(`Delete ${asset?.asset_tag}? This cannot be undone.`)) return
     await fetch(`/api/assets/${id}`, { method: 'DELETE' })
-    router.push('/assets')
+      router.push(`/assets?class=${form.asset_class}`)
   }
 
   if (!asset) return <div className="p-8 text-gray-400">Loading…</div>
@@ -147,9 +173,25 @@ export default function EditAssetPage() {
             <div>
               <label className="label">Type *</label>
               <select className="input" value={form.type} onChange={e => handleTypeChange(e.target.value)}>
-                {ASSET_TYPES.map(t => <option key={t}>{t}</option>)}
+                {(form.asset_class === 'it' ? IT_TYPES : CLASSROOM_TYPES).map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
+            <div>
+              <label className="label">Asset Register</label>
+              <select className="input" value={form.asset_class} onChange={e => update('asset_class', e.target.value)}>
+                <option value="it">IT Assets</option>
+                <option value="classroom">Classroom Assets</option>
+              </select>
+            </div>
+            {form.asset_class === 'classroom' && (
+              <div>
+                <label className="label">Tracking Mode</label>
+                <select className="input" value={form.tracking_mode} onChange={e => update('tracking_mode', e.target.value)}>
+                  <option value="individual">Individual item</option>
+                  <option value="quantity">Quantity group</option>
+                </select>
+              </div>
+            )}
             <div>
               <label className="label">Status</label>
               <select className="input" value={form.status} onChange={e => update('status', e.target.value)}>
@@ -162,8 +204,22 @@ export default function EditAssetPage() {
             </div>
             <div>
               <label className="label">Serial Number</label>
-              <input className="input" value={form.serial_number} onChange={e => update('serial_number', e.target.value)} />
+              <input className="input" value={form.serial_number} onChange={e => update('serial_number', e.target.value)} disabled={form.tracking_mode === 'quantity'} />
             </div>
+            {form.tracking_mode === 'quantity' ? (
+              <div className="sm:col-span-2 grid grid-cols-2 sm:grid-cols-5 gap-3 rounded-xl bg-gray-50 border border-gray-200 p-4">
+                {([['quantity_total', 'Total'], ['quantity_good', 'Good'], ['quantity_fair', 'Fair'], ['quantity_damaged', 'Damaged'], ['quantity_missing', 'Missing']] as const).map(([key, label]) => (
+                  <div key={key}><label className="label">{label}</label><input type="number" min={key === 'quantity_total' ? 1 : 0} className="input" value={form[key]} onChange={e => update(key, e.target.value)} /></div>
+                ))}
+              </div>
+            ) : (
+              <div>
+                <label className="label">Condition</label>
+                <select className="input" value={form.condition} onChange={e => update('condition', e.target.value)}>
+                  <option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option><option value="missing">Missing</option>
+                </select>
+              </div>
+            )}
             <div>
               <label className="label">Location</label>
               <select className="input" value={form.location_id} onChange={e => update('location_id', e.target.value)}>
@@ -179,6 +235,8 @@ export default function EditAssetPage() {
               <label className="label">Warranty Expiry</label>
               <input type="date" className="input" value={form.warranty_expiry} onChange={e => update('warranty_expiry', e.target.value)} />
             </div>
+            <div><label className="label">Purchase Cost</label><input type="number" min="0" step="0.01" className="input" value={form.purchase_cost} onChange={e => update('purchase_cost', e.target.value)} /></div>
+            <div><label className="label">Supplier</label><input className="input" value={form.supplier} onChange={e => update('supplier', e.target.value)} /></div>
             <div className="sm:col-span-2">
               <label className="label">Notes</label>
               <textarea className="input resize-none" rows={3} value={form.notes} onChange={e => update('notes', e.target.value)} />

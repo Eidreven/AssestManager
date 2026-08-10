@@ -203,7 +203,7 @@ export default function AdminPage({ isSuperAdmin }: Props) {
   }
 
   async function resetUserPassword(user: User) {
-    if (!confirm(`Reset password for "${user.name}" to temporary password mc2026 and email them?`)) return
+    if (!confirm(`Generate a secure temporary password for "${user.name}" and email it to them?`)) return
     setUserActionLoading(user.id); setError(''); setSuccess('')
     try {
       const res = await fetch(`/api/users/${user.id}/reset-password`, { method: 'POST' })
@@ -211,9 +211,7 @@ export default function AdminPage({ isSuperAdmin }: Props) {
       if (res.ok) {
         setUsers(prev => prev.map(u => u.id === user.id ? { ...u, must_change_password: 1 } : u))
         setSelectedUser(prev => prev?.id === user.id ? { ...prev, must_change_password: 1 } : prev)
-        setSuccess(data.emailSent === false
-          ? `Password reset to mc2026, but email could not be sent.`
-          : `Temporary password sent to ${user.email}.`)
+        setSuccess(`Temporary password sent to ${user.email}.`)
       } else {
         setError(data.error ?? 'Failed to reset password')
       }

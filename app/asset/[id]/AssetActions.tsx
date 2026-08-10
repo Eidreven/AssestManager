@@ -15,6 +15,7 @@ interface Props {
   teachers: Teacher[]
   sets: AssetSet[]
   mode: 'allocate' | 'return' | 'request'
+  requestMode?: 'standard' | 'issue-only'
 }
 
 type AllocTarget = 'teacher' | 'classroom' | 'custom' | 'set'
@@ -38,9 +39,9 @@ interface AllocForm {
   notes: string
 }
 
-export default function AssetActions({ assetId, assetStatus, allocationId, locations, teachers, sets, mode }: Props) {
+export default function AssetActions({ assetId, assetStatus, allocationId, locations, teachers, sets, mode, requestMode = 'standard' }: Props) {
   const router = useRouter()
-  const [dialog, setDialog] = useState<null | 'allocate' | 'borrow' | 'relocate'>(null)
+  const [dialog, setDialog] = useState<null | 'allocate' | 'borrow' | 'relocate' | 'issue'>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -144,7 +145,7 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
     }
   }
 
-  async function handleRequest(type: 'borrow' | 'relocate') {
+  async function handleRequest(type: 'borrow' | 'relocate' | 'issue') {
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/requests', {
@@ -215,6 +216,12 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
         <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{success}</div>
       )}
       <div className="flex flex-wrap gap-3">
+        {requestMode === 'issue-only' && (
+          <button onClick={() => { setDialog('issue'); setSuccess(''); setError('') }} className="btn-warning flex-1 sm:flex-none">
+            Report Damage or Issue
+          </button>
+        )}
+        {requestMode === 'standard' && <>
         <button
           onClick={() => { setDialog('borrow'); setSuccess(''); setError('') }}
           className="btn-warning flex-1 sm:flex-none"
@@ -236,6 +243,7 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
           </svg>
           Request Relocation
         </button>
+        </>}
       </div>
 
       {dialog === 'borrow' && (
@@ -246,6 +254,11 @@ export default function AssetActions({ assetId, assetStatus, allocationId, locat
       {dialog === 'relocate' && (
         <RequestDialog title="Request Relocation" form={reqForm} update={updateReq} locations={locations}
           showDuration={false} showLocation onSubmit={() => handleRequest('relocate')}
+          onClose={() => setDialog(null)} loading={loading} error={error} />
+      )}
+      {dialog === 'issue' && (
+        <RequestDialog title="Report Damage or Issue" form={reqForm} update={updateReq} locations={locations}
+          showDuration={false} showLocation={false} onSubmit={() => handleRequest('issue')}
           onClose={() => setDialog(null)} loading={loading} error={error} />
       )}
     </div>
@@ -495,7 +508,7 @@ function RequestDialog({ title, form, update, locations, showDuration, showLocat
         )}
         <div>
           <label className="label">Reason / Notes</label>
-          <textarea className="input resize-none" rows={3} value={form.reason} onChange={e => update('reason', e.target.value)} placeholder="Please describe why you need this device…" />
+          <textarea className="input resize-none" rows={3} value={form.reason} onChange={e => update('reason', e.target.value)} placeholder="Describe the request, damage, or issue" />
         </div>
         <div className="flex gap-3 pt-1">
           <button className="btn-primary flex-1" disabled={loading || !form.requester_name} onClick={onSubmit}>

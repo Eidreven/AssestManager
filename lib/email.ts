@@ -1,11 +1,9 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'shamikararavindu@gmail.com'
 const ADMIN_EMAIL_2 = process.env.ADMIN_EMAIL_2 ?? 'ravindu.shamikara@education.nt.gov.au'
 const ADMIN_EMAILS = [ADMIN_EMAIL, ADMIN_EMAIL_2].filter(Boolean)
-const FROM = `MPS Asset Manager <${process.env.FROM_EMAIL ?? 'macfarlane@clenturait.com.au'}>`
+const FROM = `MPS Asset Register <${process.env.FROM_EMAIL ?? 'macfarlane@clenturait.com.au'}>`
 const SCHOOL = 'Macfarlane Primary School'
 
 function baseTemplate(title: string, body: string) {
@@ -22,7 +20,7 @@ function baseTemplate(title: string, body: string) {
         </td></tr>
         <tr><td style="padding:28px 32px;">${body}</td></tr>
         <tr><td style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;">
-          <p style="margin:0;color:#9ca3af;font-size:12px;">MPS Asset Manager · ${SCHOOL}</p>
+          <p style="margin:0;color:#9ca3af;font-size:12px;">MPS School Asset Register · ${SCHOOL}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -53,10 +51,12 @@ const PRIORITY_LABELS: Record<string, string> = {
 }
 
 async function sendMail(to: string | string[], subject: string, html: string) {
-  if (!process.env.RESEND_API_KEY) {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
     console.warn('Email not configured — set RESEND_API_KEY in environment variables')
     return
   }
+  const resend = new Resend(apiKey)
   const recipients = Array.isArray(to) ? to : [to]
   await Promise.all(recipients.map(addr =>
     resend.emails.send({ from: FROM, to: addr, subject, html })
@@ -74,7 +74,7 @@ export async function sendPasswordResetEmail(params: {
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${toName},</p>
     <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      We received a request to reset your password for MPS Asset Manager.
+      We received a request to reset your password for the MPS School Asset Register.
       Use the code below to reset your password.
     </p>
     <div style="background:#f3f4f6;border:2px dashed #d1d5db;border-radius:12px;padding:20px 32px;text-align:center;margin-bottom:20px;">
@@ -82,13 +82,13 @@ export async function sendPasswordResetEmail(params: {
       <p style="margin:0;color:#1e3a8a;font-size:36px;font-weight:800;letter-spacing:8px;font-family:monospace;">${code}</p>
     </div>
     <p style="margin:0 0 8px;color:#374151;font-size:14px;">
-      Go to the MPS Asset Manager forgot password page and enter this code when prompted.
+      Go to the MPS School Asset Register forgot password page and enter this code when prompted.
     </p>
     <p style="margin:0;color:#6b7280;font-size:13px;">
       This code expires in <strong>1 hour</strong>. If you did not request this, you can safely ignore this email.
     </p>
   `
-  await sendMail(toEmail, 'Your MPS Asset Manager password reset code', baseTemplate('Password Reset Code', body))
+  await sendMail(toEmail, 'Your MPS School Asset Register password reset code', baseTemplate('Password Reset Code', body))
 }
 
 // ── 1. Notify admin of new request ────────────────────────────────────────────
@@ -123,7 +123,7 @@ export async function sendNewRequestNotification(params: {
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;">Please log in to MPS Asset Manager to review and action this request (Request #${requestId}).</p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Please log in to the MPS School Asset Register to review and action this request (Request #${requestId}).</p>
   `
   await sendMail(
     ADMIN_EMAILS,
@@ -194,7 +194,7 @@ export async function sendAllocationNotification(params: {
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;">Log in to MPS Asset Manager to view the full asset list.</p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Log in to the MPS School Asset Register to view the full asset list.</p>
   `
   await sendMail(ADMIN_EMAILS, `Device allocated — ${assetTag} → ${allocatedTo}`, baseTemplate('Device Allocated', body))
 }
@@ -306,7 +306,7 @@ export async function sendReturnNotification(params: {
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;">Log in to MPS Asset Manager to view the full asset list.</p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Log in to the MPS School Asset Register to view the full asset list.</p>
   `
   await sendMail(ADMIN_EMAILS, `Device returned — ${assetTag} now available`, baseTemplate('Device Returned', body))
 }
@@ -388,7 +388,7 @@ export async function sendMaintenanceStatusUpdate(params: {
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;">You can check the latest status in MPS Asset Manager.</p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">You can check the latest status in the MPS School Asset Register.</p>
   `
   await sendMail(toEmail, `${labels[status] ?? 'Maintenance update'} — ${assetTag}`, baseTemplate(labels[status] ?? 'Maintenance Update', body))
 }
@@ -416,7 +416,7 @@ export async function sendMaintenanceAssignedNotification(params: {
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;color:#6b7280;font-size:13px;">Please log in to MPS Asset Manager and open Maintenance to start work.</p>
+    <p style="margin:0;color:#6b7280;font-size:13px;">Please log in to the MPS School Asset Register and open Maintenance to start work.</p>
   `
   await sendMail(assigneeEmail, `Maintenance assigned — ${assetTag}`, baseTemplate('Maintenance Assigned', body))
 }
@@ -433,7 +433,7 @@ export async function sendTemporaryPasswordEmail(params: {
   const body = `
     <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${toName},</p>
     <p style="margin:0 0 20px;color:#374151;font-size:15px;">
-      ${resetByName} has reset your MPS Asset Manager password. Use the details below to sign in.
+      ${resetByName} has reset your MPS School Asset Register password. Use the details below to sign in.
     </p>
     <table cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px;">
       <tr><td style="padding:16px;">
@@ -448,7 +448,7 @@ export async function sendTemporaryPasswordEmail(params: {
     <p style="margin:0 0 8px;color:#374151;font-size:14px;">Please type your email address exactly as shown above when signing in.</p>
     <p style="margin:0;color:#6b7280;font-size:13px;">You can skip the password change prompt for now, but it will keep appearing when you sign in until you choose your own password.</p>
   `
-  await sendMail(toEmail, 'Your MPS Asset Manager password was reset', baseTemplate('Temporary Password', body))
+  await sendMail(toEmail, 'Your MPS School Asset Register password was reset', baseTemplate('Temporary Password', body))
 }
 
 type HandoverEmailItem = {

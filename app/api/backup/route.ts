@@ -2,42 +2,106 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthFromRequest } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 
+type BackupValue = string | number | null
+type BackupRow = Record<string, BackupValue>
+
+const TABLES = {
+  locations: ['id', 'name', 'description', 'created_at'],
+  asset_sets: ['id', 'name', 'description', 'responsible_teacher', 'location_id', 'created_at'],
+  assets: [
+    'id', 'asset_tag', 'name', 'type', 'model', 'serial_number', 'status', 'location_id', 'notes',
+    'purchase_date', 'warranty_expiry', 'created_at', 'updated_at', 'set_id', 'created_by_id',
+    'asset_class', 'tracking_mode', 'quantity_total', 'condition', 'quantity_good', 'quantity_fair',
+    'quantity_damaged', 'quantity_missing', 'purchase_cost', 'supplier',
+  ],
+  allocations: [
+    'id', 'asset_id', 'allocated_to', 'allocated_to_role', 'allocated_by_id', 'location_id',
+    'purpose', 'is_temporary', 'allocated_at', 'expected_return', 'returned_at', 'notes',
+  ],
+  requests: [
+    'id', 'asset_id', 'request_type', 'priority', 'requester_name', 'requester_email',
+    'requester_phone', 'requester_class', 'from_location_id', 'to_location_id', 'reason', 'duration',
+    'status', 'handled_by_id', 'handled_at', 'handler_notes', 'created_at',
+  ],
+  asset_logs: ['id', 'asset_id', 'event_type', 'actor_name', 'actor_id', 'detail', 'created_at'],
+  maintenance_jobs: [
+    'id', 'asset_id', 'request_id', 'reported_by_name', 'reported_by_email', 'fault_description',
+    'priority', 'status', 'approved_by_id', 'assigned_to_id', 'started_at', 'held_at', 'completed_at',
+    'latest_note', 'resolution_note', 'return_location_id', 'return_set_id', 'previous_state_json',
+    'created_at', 'updated_at',
+  ],
+  handover_sessions: ['id', 'title', 'notes', 'status', 'created_by_id', 'created_at', 'sent_at', 'closed_at'],
+  handover_items: [
+    'id', 'session_id', 'asset_id', 'allocation_id', 'set_id', 'holder_name', 'holder_email',
+    'status', 'admin_notes', 'created_at', 'updated_at',
+  ],
+  activity_logs: ['id', 'user_id', 'user_name', 'action', 'detail', 'created_at'],
+} as const
+
+type TableName = keyof typeof TABLES
+const RESTORE_ORDER = Object.keys(TABLES) as TableName[]
+const DELETE_ORDER = [...RESTORE_ORDER].reverse()
+
+interface BackupFile {
+  version: number
+  exported_at?: string
+  tables: Partial<Record<TableName, BackupRow[]>>
+}
+
+async function readCurrentData(): Promise<BackupFile> {
+  const db = getDb()
+  const entries = await Promise.all(RESTORE_ORDER.map(async table => {
+    const result = await db.execute(`SELECT * FROM ${table} ORDER BY id`)
+    return [table, result.rows as unknown as BackupRow[]] as const
+  }))
+  return { version: 2, exported_at: new Date().toISOString(), tables: Object.fromEntries(entries) }
+}
+
+function validateBackup(value: unknown): BackupFile {
+  if (!value || typeof value !== 'object') throw new Error('Invalid backup file')
+  const backup = value as Partial<BackupFile>
+  if (backup.version !== 2 || !backup.tables || typeof backup.tables !== 'object') {
+    throw new Error('Only complete version 2 backups can be restored')
+  }
+  for (const table of RESTORE_ORDER) {
+    const rows = backup.tables[table]
+    if (!Array.isArray(rows)) throw new Error(`Backup is missing table: ${table}`)
+    for (const row of rows) {
+      if (!row || typeof row !== 'object') throw new Error(`Invalid row in table: ${table}`)
+      for (const value of Object.values(row)) {
+        if (value !== null && typeof value !== 'string' && typeof value !== 'number') {
+          throw new Error(`Invalid value in table: ${table}`)
+        }
+      }
+    }
+  }
+  return backup as BackupFile
+}
+
+async function replaceData(backup: BackupFile): Promise<void> {
+  const db = getDb()
+  for (const table of DELETE_ORDER) await db.execute(`DELETE FROM ${table}`)
+  for (const table of RESTORE_ORDER) {
+    const allowed = new Set<string>(TABLES[table])
+    for (const row of backup.tables[table] ?? []) {
+      const columns = Object.keys(row).filter(column => allowed.has(column))
+      if (columns.length === 0) continue
+      const placeholders = columns.map(() => '?').join(', ')
+      const values = columns.map(column => row[column] ?? null)
+      await db.execute(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`, values)
+    }
+  }
+}
+
 export async function GET(req: NextRequest) {
   const token = getAuthFromRequest(req)
   if (!token || (token.role !== 'admin' && token.role !== 'superadmin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 })
   }
-
-  const db = getDb()
-
-  // Export all tables as JSON
-  const [users, locations, assets, allocations, requests] = await Promise.all([
-    db.execute('SELECT id, name, email, role, created_at FROM users ORDER BY id'),
-    db.execute('SELECT * FROM locations ORDER BY id'),
-    db.execute('SELECT * FROM assets ORDER BY id'),
-    db.execute('SELECT * FROM allocations ORDER BY id'),
-    db.execute('SELECT * FROM requests ORDER BY id'),
-  ])
-
-  const backup = {
-    exported_at: new Date().toISOString(),
-    version: 1,
-    users: users.rows,
-    locations: locations.rows,
-    assets: assets.rows,
-    allocations: allocations.rows,
-    requests: requests.rows,
-  }
-
-  const json = JSON.stringify(backup, null, 2)
-  const date = new Date().toISOString().slice(0, 10)
-  const filename = `assets-backup-${date}.json`
-
-  return new NextResponse(json, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
+  const backup = await readCurrentData()
+  const filename = `assets-backup-${new Date().toISOString().slice(0, 10)}.json`
+  return new NextResponse(JSON.stringify(backup, null, 2), {
+    headers: { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="${filename}"` },
   })
 }
 
@@ -49,78 +113,21 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData()
   const file = formData.get('file') as File | null
-
-  if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-  if (!file.name.endsWith('.json')) return NextResponse.json({ error: 'File must be a .json backup file' }, { status: 400 })
-
-  let backup: {
-    version: number
-    users?: Record<string, unknown>[]
-    locations?: Record<string, unknown>[]
-    assets?: Record<string, unknown>[]
-    allocations?: Record<string, unknown>[]
-    requests?: Record<string, unknown>[]
+  if (!file || !file.name.endsWith('.json')) {
+    return NextResponse.json({ error: 'Select a JSON backup file' }, { status: 400 })
   }
 
   try {
-    backup = JSON.parse(await file.text())
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON file' }, { status: 400 })
+    const incoming = validateBackup(JSON.parse(await file.text()))
+    const safetyBackup = await readCurrentData()
+    try {
+      await replaceData(incoming)
+    } catch (restoreError) {
+      await replaceData(safetyBackup)
+      throw restoreError
+    }
+    return NextResponse.json({ message: 'Database restored successfully from a complete backup.' })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Restore failed' }, { status: 400 })
   }
-
-  if (!backup.version) return NextResponse.json({ error: 'Invalid backup file format' }, { status: 400 })
-
-  const db = getDb()
-
-  await db.execute('DELETE FROM requests')
-  await db.execute('DELETE FROM allocations')
-  await db.execute('DELETE FROM assets')
-  await db.execute('DELETE FROM locations')
-
-  for (const row of backup.locations ?? []) {
-    await db.execute('INSERT OR REPLACE INTO locations (id, name, description, created_at) VALUES (?, ?, ?, ?)',
-      [row.id as number, row.name as string, (row.description ?? null) as string | null, row.created_at as string])
-  }
-
-  for (const row of backup.assets ?? []) {
-    await db.execute(`INSERT OR REPLACE INTO assets
-      (id, asset_tag, name, type, model, serial_number, status, location_id, notes, purchase_date, warranty_expiry, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id as number, row.asset_tag as string, row.name as string, row.type as string,
-       (row.model ?? null) as string | null, (row.serial_number ?? null) as string | null,
-       (row.status ?? 'available') as string, (row.location_id ?? null) as number | null,
-       (row.notes ?? null) as string | null, (row.purchase_date ?? null) as string | null,
-       (row.warranty_expiry ?? null) as string | null, row.created_at as string, row.updated_at as string])
-  }
-
-  for (const row of backup.allocations ?? []) {
-    await db.execute(`INSERT OR REPLACE INTO allocations
-      (id, asset_id, allocated_to, allocated_to_role, allocated_by_id, location_id, purpose,
-       is_temporary, allocated_at, expected_return, returned_at, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id as number, row.asset_id as number, row.allocated_to as string,
-       (row.allocated_to_role ?? null) as string | null, (row.allocated_by_id ?? null) as number | null,
-       (row.location_id ?? null) as number | null, (row.purpose ?? null) as string | null,
-       (row.is_temporary ?? 0) as number, row.allocated_at as string,
-       (row.expected_return ?? null) as string | null, (row.returned_at ?? null) as string | null,
-       (row.notes ?? null) as string | null])
-  }
-
-  for (const row of backup.requests ?? []) {
-    await db.execute(`INSERT OR REPLACE INTO requests
-      (id, asset_id, request_type, priority, requester_name, requester_email, requester_phone,
-       requester_class, from_location_id, to_location_id, reason, duration, status,
-       handled_by_id, handled_at, handler_notes, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id as number, row.asset_id as number, row.request_type as string,
-       (row.priority ?? 'medium') as string, row.requester_name as string,
-       (row.requester_email ?? null) as string | null, (row.requester_phone ?? null) as string | null,
-       (row.requester_class ?? null) as string | null, (row.from_location_id ?? null) as number | null,
-       (row.to_location_id ?? null) as number | null, (row.reason ?? null) as string | null,
-       (row.duration ?? null) as string | null, (row.status ?? 'pending') as string,
-       (row.handled_by_id ?? null) as number | null, (row.handled_at ?? null) as string | null,
-       (row.handler_notes ?? null) as string | null, row.created_at as string])
-  }
-
-  return NextResponse.json({ message: 'Database restored successfully from JSON backup.' })
 }

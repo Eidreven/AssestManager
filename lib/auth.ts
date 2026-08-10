@@ -2,7 +2,13 @@ import jwt from 'jsonwebtoken'
 import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'mps-asset-manager-secret-change-in-production'
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT_SECRET must be configured with at least 32 characters')
+  }
+  return secret
+}
 const COOKIE_NAME = 'mps_auth_token'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
@@ -11,18 +17,19 @@ export interface TokenPayload {
   email: string
   name: string
   role: 'superadmin' | 'admin' | 'teacher'
+  authVersion: number
   mustChangePassword?: boolean
   impersonatedBy?: number
   impersonatedByName?: string
 }
 
 export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' })
 }
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload
+    return jwt.verify(token, getJwtSecret()) as TokenPayload
   } catch {
     return null
   }

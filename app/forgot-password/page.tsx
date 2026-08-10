@@ -39,8 +39,8 @@ export default function ForgotPasswordPage() {
 
   async function handleCodeSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!/^\d{6}$/.test(code)) {
-      setError('Please enter the 6-digit code from your email.')
+    if (!/^[A-Za-z0-9_-]{12}$/.test(code)) {
+      setError('Please enter the 12-character code from your email.')
       return
     }
     setStep('password')
@@ -78,7 +78,7 @@ export default function ForgotPasswordPage() {
                 d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">MPS Asset Manager</h1>
+          <h1 className="text-2xl font-bold text-white">MPS School Asset Register</h1>
           <p className="text-blue-200 text-sm mt-1">Macfarlane Primary School</p>
         </div>
 
@@ -93,7 +93,7 @@ export default function ForgotPasswordPage() {
           ) : step === 'email' ? (
             <>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">Reset your password</h2>
-              <p className="text-gray-500 text-sm mb-6">Enter your email and we&apos;ll send you a 6-digit reset code.</p>
+              <p className="text-gray-500 text-sm mb-6">Enter your email and we&apos;ll send you a secure reset code.</p>
               {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
               <form onSubmit={handleEmailSubmit} className="space-y-4">
                 <div>
@@ -121,18 +121,18 @@ export default function ForgotPasswordPage() {
             <>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">Enter your reset code</h2>
               <p className="text-gray-500 text-sm mb-6">
-                We sent a 6-digit code to <strong>{email}</strong>. Check your inbox and enter the code below.
+                We sent a 12-character code to <strong>{email}</strong>. Check your inbox and enter the code below.
               </p>
               {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
               <form onSubmit={handleCodeSubmit} className="space-y-4">
                 <div>
-                  <label className="label" htmlFor="code">6-digit code</label>
+                  <label className="label" htmlFor="code">12-character code</label>
                   <input
                     id="code"
                     type="text"
                     inputMode="numeric"
                     pattern="\d{6}"
-                    maxLength={6}
+                    maxLength={12}
                     className="input text-center text-2xl tracking-widest font-mono"
                     value={code}
                     onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}

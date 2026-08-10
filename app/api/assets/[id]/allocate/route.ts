@@ -11,29 +11,38 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const assetId = Number(params.id)
   const asset = await db.getAssetById(assetId)
   if (!asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
+  if (asset.tracking_mode === 'quantity') {
+    return NextResponse.json({ error: 'Quantity-tracked classroom records cannot be allocated to an individual' }, { status: 400 })
+  }
 
   const body = await req.json()
   const { allocated_to, allocated_to_role, location_id, set_id, purpose, is_temporary, expected_return, notes } = body
 
   if (!allocated_to) return NextResponse.json({ error: 'allocated_to is required' }, { status: 400 })
 
-  if (asset.current_allocation) {
-    await db.returnAllocation(asset.current_allocation.id, assetId)
+  const previousAllocation = asset.current_allocation
+  if (previousAllocation) await db.returnAllocation(previousAllocation.id, assetId)
+
+  let id: number
+  try {
+    if (set_id) await db.addAssetToSet(assetId, Number(set_id))
+    id = await db.createAllocation({
+      asset_id: assetId,
+      allocated_to,
+      allocated_to_role,
+      allocated_by_id: auth.userId,
+      location_id: location_id ? Number(location_id) : undefined,
+      purpose,
+      is_temporary: Boolean(is_temporary),
+      expected_return,
+      notes,
+    })
+  } catch (error) {
+    if (previousAllocation) {
+      await db.restoreAllocation(previousAllocation.id, assetId)
+    }
+    throw error
   }
-
-  if (set_id) await db.addAssetToSet(assetId, Number(set_id))
-
-  const id = await db.createAllocation({
-    asset_id: assetId,
-    allocated_to,
-    allocated_to_role,
-    allocated_by_id: auth.userId,
-    location_id: location_id ? Number(location_id) : undefined,
-    purpose,
-    is_temporary: Boolean(is_temporary),
-    expected_return,
-    notes,
-  })
 
   // Email notifications (best-effort)
   const locations = location_id ? await db.getAllLocations() : []

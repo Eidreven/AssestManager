@@ -36,7 +36,7 @@ export default function LogsClient({ allocations, requests }: Props) {
 
   function downloadLog() {
     const lines: string[] = [
-      'MPS Asset Manager — Full Log Export',
+      'MPS School Asset Register - Full Log Export',
       `Exported: ${new Date().toLocaleString('en-GB', { timeZone: 'Australia/Darwin' })}`,
       '='.repeat(70),
       '',

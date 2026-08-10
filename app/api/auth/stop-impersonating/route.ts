@@ -14,6 +14,7 @@ export async function POST() {
     email: original.email,
     name: original.name,
     role: original.role,
+    authVersion: original.auth_version,
     mustChangePassword: Boolean(original.must_change_password),
   })
   setAuthCookie(token)

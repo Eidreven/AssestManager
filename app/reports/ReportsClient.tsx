@@ -21,6 +21,7 @@ const STATUSES = [
 ]
 
 export default function ReportsClient({ teachers }: { teachers: string[] }) {
+  const [assetClass, setAssetClass] = useState('all')
   const [type, setType] = useState('all')
   const [status, setStatus] = useState('all')
   const [teacher, setTeacher] = useState('all')
@@ -31,7 +32,7 @@ export default function ReportsClient({ teachers }: { teachers: string[] }) {
     setLoading(true)
     setError('')
     try {
-      const params = new URLSearchParams({ type, status, teacher })
+      const params = new URLSearchParams({ asset_class: assetClass, type, status, teacher })
       const res = await fetch(`/api/reports?${params}`)
       if (!res.ok) {
         const data = await res.json()
@@ -68,6 +69,14 @@ export default function ReportsClient({ teachers }: { teachers: string[] }) {
           <h2 className="font-semibold text-gray-900 text-lg">Asset Report</h2>
 
           <div className="grid sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="label">Asset Register</label>
+              <select className="input" value={assetClass} onChange={e => setAssetClass(e.target.value)}>
+                <option value="all">All assets</option>
+                <option value="it">IT assets</option>
+                <option value="classroom">Classroom assets</option>
+              </select>
+            </div>
             <div>
               <label className="label">Device Type</label>
               <select className="input" value={type} onChange={e => setType(e.target.value)}>
@@ -108,10 +117,13 @@ export default function ReportsClient({ teachers }: { teachers: string[] }) {
               <li>Status and location</li>
               <li>Purchase date and warranty expiry</li>
               <li>Current allocation details (if allocated)</li>
+              <li>Register, tracking mode, quantities and condition</li>
             </ul>
             <p className="pt-2 text-gray-600">
               Filter:{' '}
               <span className="font-medium text-gray-800">{typeLabel}</span>
+              {' - '}
+              <span className="font-medium text-gray-800">{assetClass === 'all' ? 'All registers' : assetClass === 'it' ? 'IT assets' : 'Classroom assets'}</span>
               {' — '}
               <span className="font-medium text-gray-800">{statusLabel}</span>
               {teacher !== 'all' && (

@@ -131,7 +131,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-gray-500">
-          <Link href="/assets" className="hover:text-blue-600">Assets</Link>
+          <Link href={`/assets?class=${asset.asset_class}`} className="hover:text-blue-600">{asset.asset_class === 'it' ? 'IT Assets' : 'Classroom Assets'}</Link>
           <span>/</span>
           <span className="text-gray-900 font-medium">{asset.asset_tag}</span>
         </nav>
@@ -147,6 +147,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
                   <p className="font-mono text-blue-200 text-sm">{asset.asset_tag}</p>
                   <h1 className="text-xl font-bold">{asset.name}</h1>
                   <p className="text-blue-200 text-sm">{asset.type}{asset.model ? ` — ${asset.model}` : ''}</p>
+                  <p className="text-blue-300 text-xs uppercase tracking-wider mt-1">{asset.asset_class === 'it' ? 'IT register' : 'Classroom register'} · {asset.tracking_mode}</p>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -188,6 +189,8 @@ export default async function AssetDetailPage({ params }: { params: { id: string
               <div className="flex-1 grid sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
                 <Detail label="Serial Number" value={asset.serial_number} />
                 <Detail label="Location" value={asset.location_name} />
+                <Detail label="Condition" value={asset.tracking_mode === 'individual' ? asset.condition : `${asset.quantity_total} total items`} />
+                {asset.tracking_mode === 'quantity' && <Detail label="Condition breakdown" value={`${asset.quantity_good} good, ${asset.quantity_fair} fair, ${asset.quantity_damaged} damaged, ${asset.quantity_missing} missing`} />}
                 {asset.set_name && (
                   <div>
                     <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Class Set</p>
@@ -198,6 +201,8 @@ export default async function AssetDetailPage({ params }: { params: { id: string
                 )}
                 <Detail label="Purchase Date" value={formatDate(asset.purchase_date)} />
                 <Detail label="Warranty Expiry" value={formatDate(asset.warranty_expiry)} />
+                <Detail label="Purchase Cost" value={asset.purchase_cost != null ? `$${asset.purchase_cost.toFixed(2)}` : null} />
+                <Detail label="Supplier" value={asset.supplier} />
                 {asset.notes && (
                   <div className="sm:col-span-2">
                     <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Notes</p>
@@ -223,7 +228,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
         </div>
 
         {/* Current Allocation */}
-        {alloc ? (
+        {asset.tracking_mode === 'individual' && (alloc ? (
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -282,13 +287,13 @@ export default async function AssetDetailPage({ params }: { params: { id: string
               )}
             </div>
           </div>
-        )}
+        ))}
 
         {/* Request buttons — available to all logged-in users */}
         <div className="card p-6">
           <h2 className="font-semibold text-gray-900 mb-4">Submit a Request</h2>
           <p className="text-sm text-gray-500 mb-4">
-            Need to borrow or relocate this device? Submit a request and a member of staff will review it.
+            Report an issue or request a change for this asset. A member of staff will review it.
           </p>
           <AssetActions
             assetId={asset.id}
@@ -298,6 +303,7 @@ export default async function AssetDetailPage({ params }: { params: { id: string
             teachers={teachers}
             sets={sets}
             mode="request"
+            requestMode={asset.tracking_mode === 'quantity' ? 'issue-only' : 'standard'}
           />
         </div>
 

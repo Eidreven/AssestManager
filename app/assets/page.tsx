@@ -17,7 +17,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; q?: string; teacher?: string; type?: string }
+  searchParams?: { class?: string; status?: string; q?: string; teacher?: string; type?: string }
 }) {
   const auth = getAuthFromCookies()!
   const [allAssets, teachers] = await Promise.all([
@@ -25,9 +25,12 @@ export default async function AssetsPage({
     db.getTeachers(),
   ])
 
+  const assetClass = searchParams?.class === 'classroom' ? 'classroom' : 'it'
+  const classLabel = assetClass === 'it' ? 'IT Assets' : 'Classroom Assets'
   const q = searchParams?.q?.toLowerCase()
-  const deviceTypes = Array.from(new Set(allAssets.map(a => a.type))).sort()
-  const assets = allAssets.filter(a => {
+  const classAssets = allAssets.filter(asset => asset.asset_class === assetClass)
+  const deviceTypes = Array.from(new Set(classAssets.map(a => a.type))).sort()
+  const assets = classAssets.filter(a => {
     if (searchParams?.status && a.status !== searchParams.status) return false
     if (searchParams?.type && a.type !== searchParams.type) return false
     if (searchParams?.teacher && (
@@ -50,11 +53,14 @@ export default async function AssetsPage({
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Assets</h1>
-            <p className="text-gray-500 text-sm mt-0.5">{assets.length} device{assets.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">School Asset Register</p>
+            <h1 className="text-2xl font-bold text-gray-900">{classLabel}</h1>
+            <p className="text-gray-500 text-sm mt-0.5">
+              {assets.reduce((total, asset) => total + asset.quantity_total, 0)} items across {assets.length} records
+            </p>
           </div>
           {(auth.role === 'admin' || auth.role === 'superadmin') && (
-            <Link href="/assets/new" className="btn-primary">
+            <Link href={`/assets/new?class=${assetClass}`} className="btn-primary">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
@@ -66,11 +72,12 @@ export default async function AssetsPage({
         {/* Filters */}
         <div className="card p-4 flex flex-wrap gap-3">
           <form method="GET" action="/assets" className="flex-1 min-w-48">
+            <input type="hidden" name="class" value={assetClass} />
             <input
               type="search"
               name="q"
               defaultValue={searchParams?.q}
-              placeholder="Search by tag, name, model, serial…"
+              placeholder="Search by tag, name, category, model or serial"
               className="input"
             />
           </form>
@@ -81,7 +88,7 @@ export default async function AssetsPage({
           )}
 
           {/* Teacher filter */}
-          {teachers.length > 0 && (
+          {assetClass === 'it' && teachers.length > 0 && (
             <TeacherFilter
               teachers={teachers.map(t => t.name)}
               current={searchParams?.teacher ?? ''}
@@ -93,10 +100,7 @@ export default async function AssetsPage({
             {['', 'available', 'allocated', 'maintenance', 'retired'].map(s => (
               <Link
                 key={s}
-                href={s
-                  ? `/assets?status=${s}${searchParams?.teacher ? `&teacher=${encodeURIComponent(searchParams.teacher)}` : ''}`
-                  : `/assets${searchParams?.teacher ? `?teacher=${encodeURIComponent(searchParams.teacher)}` : ''}`
-                }
+                href={`/assets?class=${assetClass}${s ? `&status=${s}` : ''}${searchParams?.teacher ? `&teacher=${encodeURIComponent(searchParams.teacher)}` : ''}`}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
                   (searchParams?.status ?? '') === s
                     ? 'bg-blue-700 text-white border-blue-700'
@@ -112,8 +116,8 @@ export default async function AssetsPage({
         {/* Active teacher filter banner */}
         {searchParams?.teacher && (
           <div className="flex items-center gap-3 px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-            <span>👩‍🏫 Showing devices allocated to <strong>{searchParams.teacher}</strong></span>
-            <Link href="/assets" className="ml-auto text-green-600 hover:text-green-800 font-medium">Clear ×</Link>
+            <span>Showing devices allocated to <strong>{searchParams.teacher}</strong></span>
+            <Link href={`/assets?class=${assetClass}`} className="ml-auto text-green-600 hover:text-green-800 font-medium">Clear</Link>
           </div>
         )}
 
@@ -127,7 +131,7 @@ export default async function AssetsPage({
               </svg>
               <p className="text-gray-500">No assets found</p>
               {(auth.role === 'admin' || auth.role === 'superadmin') && !searchParams?.teacher && (
-                <Link href="/assets/new" className="btn-primary mt-4 inline-flex">Register first asset</Link>
+                <Link href={`/assets/new?class=${assetClass}`} className="btn-primary mt-4 inline-flex">Register first asset</Link>
               )}
             </div>
           ) : (
@@ -137,7 +141,8 @@ export default async function AssetsPage({
                   <tr className="text-left text-gray-500">
                     <th className="px-4 py-3 font-medium">Tag</th>
                     <th className="px-4 py-3 font-medium">Name / Model</th>
-                    <th className="px-4 py-3 font-medium">Type</th>
+                    <th className="px-4 py-3 font-medium">Category</th>
+                    {assetClass === 'classroom' && <th className="px-4 py-3 font-medium">Quantity / condition</th>}
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Location</th>
                     <th className="px-4 py-3 font-medium">Allocated To</th>
@@ -155,6 +160,16 @@ export default async function AssetsPage({
                         {asset.model && <p className="text-gray-400 text-xs">{asset.model}</p>}
                       </td>
                       <td className="px-4 py-3 text-gray-600">{asset.type}</td>
+                      {assetClass === 'classroom' && (
+                        <td className="px-4 py-3 text-gray-600">
+                          {asset.tracking_mode === 'quantity' ? (
+                            <div>
+                              <p className="font-semibold text-gray-900">{asset.quantity_total} items</p>
+                              <p className="text-xs text-gray-400">{asset.quantity_good} good, {asset.quantity_fair} fair, {asset.quantity_damaged} damaged, {asset.quantity_missing} missing</p>
+                            </div>
+                          ) : <span className="capitalize">{asset.condition}</span>}
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <span className={`badge-${asset.status}`}>{STATUS_LABELS[asset.status] ?? asset.status}</span>
                       </td>
@@ -184,4 +199,3 @@ export default async function AssetsPage({
     </AppShell>
   )
 }
-

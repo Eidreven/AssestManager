@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     email: user.email,
     name: user.name,
     role: user.role as 'superadmin' | 'admin' | 'teacher',
+    authVersion: user.auth_version,
     mustChangePassword: Boolean(user.must_change_password),
   })
 

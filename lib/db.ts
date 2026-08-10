@@ -1,9 +1,12 @@
-// Minimal Turso HTTP client using native fetch — no @libsql/client needed
+import { createClient } from '@libsql/client'
+
 type SqlValue = string | number | null
 interface Row { [col: string]: SqlValue }
 
+const DATABASE_URL = () => process.env.TURSO_DATABASE_URL ?? ''
 const TURSO_URL = () => (process.env.TURSO_DATABASE_URL ?? '').replace('libsql://', 'https://')
 const TURSO_TOKEN = () => process.env.TURSO_AUTH_TOKEN ?? ''
+const localClient = DATABASE_URL().startsWith('file:') ? createClient({ url: DATABASE_URL() }) : null
 
 function encodeArgs(args: SqlValue[]) {
   return args.map(a => {
@@ -26,6 +29,13 @@ function decodeRows(cols: { name: string }[], rows: SqlValue[][]): Row[] {
 }
 
 async function sql(query: string, args: SqlValue[] = []): Promise<{ rows: Row[]; lastInsertRowid: number | null }> {
+  if (localClient) {
+    const result = await localClient.execute({ sql: query, args })
+    return {
+      rows: result.rows.map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, typeof value === 'bigint' ? Number(value) : value])) as Row),
+      lastInsertRowid: result.lastInsertRowid == null ? null : Number(result.lastInsertRowid),
+    }
+  }
   const body = { requests: [{ type: 'execute', stmt: { sql: query, args: encodeArgs(args) } }] }
   const res = await fetch(`${TURSO_URL()}/v2/pipeline`, {
     method: 'POST',
@@ -44,6 +54,17 @@ async function sql(query: string, args: SqlValue[] = []): Promise<{ rows: Row[];
 /** Send multiple SQL statements in ONE HTTP round-trip. Errors per-statement are silently ignored (safe for IF NOT EXISTS / ALTER TABLE). */
 async function sqlBatch(statements: string[]): Promise<void> {
   if (statements.length === 0) return
+  if (localClient) {
+    for (const statement of statements) {
+      try {
+        await localClient.execute(statement)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!message.toLowerCase().includes('duplicate column name')) throw error
+      }
+    }
+    return
+  }
   const body = { requests: statements.map(s => ({ type: 'execute', stmt: { sql: s, args: [] } })) }
   const res = await fetch(`${TURSO_URL()}/v2/pipeline`, {
     method: 'POST',
@@ -52,7 +73,12 @@ async function sqlBatch(statements: string[]): Promise<void> {
     cache: 'no-store',
   })
   if (!res.ok) throw new Error(`Turso batch HTTP ${res.status}: ${await res.text()}`)
-  // Individual statement errors (e.g. ALTER TABLE column already exists) are intentionally ignored
+  const data = await res.json() as { results?: { type: string; error?: { message: string } }[] }
+  const unexpected = (data.results ?? [])
+    .filter(result => result.type === 'error')
+    .map(result => result.error?.message ?? 'Unknown migration error')
+    .filter(message => !message.toLowerCase().includes('duplicate column name'))
+  if (unexpected.length > 0) throw new Error(`Turso batch failed: ${unexpected.join('; ')}`)
 }
 
 export function resetDb(): void { /* no-op for Turso */ }
@@ -68,6 +94,7 @@ async function initSchema() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'admin',
+      auth_version INTEGER NOT NULL DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS locations (
@@ -88,6 +115,16 @@ async function initSchema() {
       notes TEXT,
       purchase_date TEXT,
       warranty_expiry TEXT,
+      asset_class TEXT NOT NULL DEFAULT 'it',
+      tracking_mode TEXT NOT NULL DEFAULT 'individual',
+      quantity_total INTEGER NOT NULL DEFAULT 1,
+      condition TEXT NOT NULL DEFAULT 'good',
+      quantity_good INTEGER NOT NULL DEFAULT 1,
+      quantity_fair INTEGER NOT NULL DEFAULT 0,
+      quantity_damaged INTEGER NOT NULL DEFAULT 0,
+      quantity_missing INTEGER NOT NULL DEFAULT 0,
+      purchase_cost REAL,
+      supplier TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )`,
@@ -211,7 +248,18 @@ async function initSchema() {
     `ALTER TABLE assets ADD COLUMN set_id INTEGER REFERENCES asset_sets(id) ON DELETE SET NULL`,
     `ALTER TABLE assets ADD COLUMN created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE maintenance_jobs ADD COLUMN previous_state_json TEXT`,
+    `ALTER TABLE assets ADD COLUMN asset_class TEXT NOT NULL DEFAULT 'it'`,
+    `ALTER TABLE assets ADD COLUMN tracking_mode TEXT NOT NULL DEFAULT 'individual'`,
+    `ALTER TABLE assets ADD COLUMN quantity_total INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE assets ADD COLUMN condition TEXT NOT NULL DEFAULT 'good'`,
+    `ALTER TABLE assets ADD COLUMN quantity_good INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE assets ADD COLUMN quantity_fair INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE assets ADD COLUMN quantity_damaged INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE assets ADD COLUMN quantity_missing INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE assets ADD COLUMN purchase_cost REAL`,
+    `ALTER TABLE assets ADD COLUMN supplier TEXT`,
   ])
 
   // ── Batch 3: Indexes (one HTTP call) ─────────────────────────────────────
@@ -219,11 +267,16 @@ async function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_alloc_asset      ON allocations(asset_id)`,
     `CREATE INDEX IF NOT EXISTS idx_alloc_returned   ON allocations(returned_at)`,
     `CREATE INDEX IF NOT EXISTS idx_alloc_active     ON allocations(asset_id, returned_at)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_alloc_one_active ON allocations(asset_id) WHERE returned_at IS NULL`,
     `CREATE INDEX IF NOT EXISTS idx_alloc_at         ON allocations(allocated_at)`,
     `CREATE INDEX IF NOT EXISTS idx_assets_tag       ON assets(asset_tag)`,
     `CREATE INDEX IF NOT EXISTS idx_assets_status    ON assets(status)`,
     `CREATE INDEX IF NOT EXISTS idx_assets_type      ON assets(type)`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_serial ON assets(serial_number) WHERE serial_number IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_assets_class     ON assets(asset_class)`,
+    `CREATE INDEX IF NOT EXISTS idx_assets_tracking  ON assets(tracking_mode)`,
+    // Legacy registers can contain duplicate serials. API validation prevents new duplicates
+    // without making startup fail on data that predates that rule.
+    `CREATE INDEX IF NOT EXISTS idx_assets_serial_lookup ON assets(serial_number) WHERE serial_number IS NOT NULL`,
     `CREATE INDEX IF NOT EXISTS idx_requests_asset   ON requests(asset_id)`,
     `CREATE INDEX IF NOT EXISTS idx_requests_status  ON requests(status)`,
     `CREATE INDEX IF NOT EXISTS idx_requests_at      ON requests(created_at)`,
@@ -239,7 +292,7 @@ async function initSchema() {
 }
 
 // Store promise so db methods can await it — ensures migration runs before queries
-const schemaReady = initSchema().catch(err => console.error('Schema init error:', err))
+const schemaReady = process.env.SKIP_DB_SCHEMA_INIT === '1' ? Promise.resolve() : initSchema()
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -250,6 +303,7 @@ export interface User {
   password_hash: string
   role: 'superadmin' | 'admin' | 'teacher'
   must_change_password: number
+  auth_version: number
   created_at: string
 }
 
@@ -285,6 +339,16 @@ export interface Asset {
   notes: string | null
   purchase_date: string | null
   warranty_expiry: string | null
+  asset_class: 'it' | 'classroom'
+  tracking_mode: 'individual' | 'quantity'
+  quantity_total: number
+  condition: 'good' | 'fair' | 'damaged' | 'missing'
+  quantity_good: number
+  quantity_fair: number
+  quantity_damaged: number
+  quantity_missing: number
+  purchase_cost: number | null
+  supplier: string | null
   created_at: string
   updated_at: string
 }
@@ -475,6 +539,10 @@ function mapAssetRow(row: RawAssetRow): AssetWithDetails {
     model: row.model, serial_number: row.serial_number, status: row.status,
     location_id: row.location_id, set_id: row.set_id, created_by_id: row.created_by_id,
     notes: row.notes, purchase_date: row.purchase_date, warranty_expiry: row.warranty_expiry,
+    asset_class: row.asset_class, tracking_mode: row.tracking_mode, quantity_total: row.quantity_total,
+    condition: row.condition, quantity_good: row.quantity_good, quantity_fair: row.quantity_fair,
+    quantity_damaged: row.quantity_damaged, quantity_missing: row.quantity_missing,
+    purchase_cost: row.purchase_cost, supplier: row.supplier,
     created_at: row.created_at, updated_at: row.updated_at,
     location_name: row.location_name, set_name: row.set_name, created_by_name: row.created_by_name,
     current_allocation: row.al_id ? {
@@ -516,10 +584,10 @@ export const db = {
     return r.lastInsertRowid!
   },
   async updateUserPassword(id: number, passwordHash: string, mustChangePassword = false): Promise<void> {
-    await sql('UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ?', [passwordHash, mustChangePassword ? 1 : 0, id])
+    await sql('UPDATE users SET password_hash = ?, must_change_password = ?, auth_version = auth_version + 1 WHERE id = ?', [passwordHash, mustChangePassword ? 1 : 0, id])
   },
   async updateUser(id: number, name: string, email: string, role: string): Promise<void> {
-    await sql('UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?', [name, email, role, id])
+    await sql('UPDATE users SET name = ?, email = ?, role = ?, auth_version = auth_version + 1 WHERE id = ?', [name, email, role, id])
   },
   async deleteUser(id: number): Promise<void> {
     await sql('DELETE FROM users WHERE id = ?', [id])
@@ -537,15 +605,15 @@ export const db = {
     await sql('UPDATE password_reset_tokens SET used = 1 WHERE token = ?', [token])
   },
   async getAllUsers(): Promise<Omit<User, 'password_hash'>[]> {
-    const r = await sql('SELECT id, name, email, role, must_change_password, created_at FROM users ORDER BY name')
+    const r = await sql('SELECT id, name, email, role, must_change_password, auth_version, created_at FROM users ORDER BY name')
     return r.rows as unknown as Omit<User, 'password_hash'>[]
   },
   async getUserByName(name: string): Promise<Omit<User, 'password_hash'> | undefined> {
-    const r = await sql('SELECT id, name, email, role, must_change_password, created_at FROM users WHERE name = ? LIMIT 1', [name])
+    const r = await sql('SELECT id, name, email, role, must_change_password, auth_version, created_at FROM users WHERE name = ? LIMIT 1', [name])
     return r.rows[0] as unknown as Omit<User, 'password_hash'> | undefined
   },
   async getTeachers(): Promise<Omit<User, 'password_hash'>[]> {
-    const r = await sql("SELECT id, name, email, role, must_change_password, created_at FROM users WHERE role = 'teacher' ORDER BY name")
+    const r = await sql("SELECT id, name, email, role, must_change_password, auth_version, created_at FROM users WHERE role = 'teacher' ORDER BY name")
     return r.rows as unknown as Omit<User, 'password_hash'>[]
   },
 
@@ -710,13 +778,25 @@ export const db = {
     asset_tag: string; name: string; type: string; model?: string
     serial_number?: string; location_id?: number; notes?: string
     purchase_date?: string; warranty_expiry?: string; created_by_id?: number
+    asset_class?: 'it' | 'classroom'; tracking_mode?: 'individual' | 'quantity'
+    quantity_total?: number; condition?: 'good' | 'fair' | 'damaged' | 'missing'
+    quantity_good?: number; quantity_fair?: number; quantity_damaged?: number; quantity_missing?: number
+    purchase_cost?: number; supplier?: string
   }): Promise<number> {
     const r = await sql(`
-      INSERT INTO assets (asset_tag, name, type, model, serial_number, location_id, notes, purchase_date, warranty_expiry, created_by_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO assets (
+        asset_tag, name, type, model, serial_number, location_id, notes, purchase_date,
+        warranty_expiry, created_by_id, asset_class, tracking_mode, quantity_total,
+        condition, quantity_good, quantity_fair, quantity_damaged, quantity_missing,
+        purchase_cost, supplier
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [data.asset_tag, data.name, data.type, data.model ?? null, data.serial_number ?? null,
         data.location_id ?? null, data.notes ?? null, data.purchase_date ?? null, data.warranty_expiry ?? null,
-        data.created_by_id ?? null])
+        data.created_by_id ?? null, data.asset_class ?? 'it', data.tracking_mode ?? 'individual',
+        data.quantity_total ?? 1, data.condition ?? 'good', data.quantity_good ?? 1,
+        data.quantity_fair ?? 0, data.quantity_damaged ?? 0, data.quantity_missing ?? 0,
+        data.purchase_cost ?? null, data.supplier ?? null])
     return r.lastInsertRowid!
   },
 
@@ -798,13 +878,28 @@ export const db = {
     `, [data.asset_id, data.allocated_to, data.allocated_to_role ?? null,
         data.allocated_by_id ?? null, data.location_id ?? null, data.purpose ?? null,
         data.is_temporary ? 1 : 0, data.expected_return ?? null, data.notes ?? null])
-    await sql(`UPDATE assets SET status = 'allocated', updated_at = datetime('now') WHERE id = ?`, [data.asset_id])
+    try {
+      await sql(`UPDATE assets SET status = 'allocated', updated_at = datetime('now') WHERE id = ?`, [data.asset_id])
+    } catch (error) {
+      await sql(`DELETE FROM allocations WHERE id = ?`, [r.lastInsertRowid])
+      throw error
+    }
     return r.lastInsertRowid!
   },
 
   async returnAllocation(allocationId: number, assetId: number): Promise<void> {
     await sql(`UPDATE allocations SET returned_at = datetime('now') WHERE id = ?`, [allocationId])
-    await sql(`UPDATE assets SET status = 'available', updated_at = datetime('now') WHERE id = ?`, [assetId])
+    try {
+      await sql(`UPDATE assets SET status = 'available', updated_at = datetime('now') WHERE id = ?`, [assetId])
+    } catch (error) {
+      await sql(`UPDATE allocations SET returned_at = NULL WHERE id = ?`, [allocationId])
+      throw error
+    }
+  },
+
+  async restoreAllocation(allocationId: number, assetId: number): Promise<void> {
+    await sql(`UPDATE allocations SET returned_at = NULL WHERE id = ?`, [allocationId])
+    await sql(`UPDATE assets SET status = 'allocated', updated_at = datetime('now') WHERE id = ?`, [assetId])
   },
 
   // Requests
